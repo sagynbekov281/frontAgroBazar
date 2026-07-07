@@ -1,0 +1,54 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@800&display=swap');
+
+@theme {
+  --color-primary-50: #F0FDF4;
+  --color-primary-100: #DCFCE7;
+  --color-primary-500: #22C55E;
+  --color-primary-600: #16A34A;
+  --color-primary-700: #15803D;
+  --color-primary-800: #166534;
+  --color-accent-400: #FB923C;
+  --color-accent-500: #F97316;
+  --color-accent-600: #EA580C;
+  --color-surface: #F8FAFC;
+  --color-card: #FFFFFF;
+  --color-border: #E2E8F0;
+  --color-text: #0F172A;
+  --color-muted: #64748B;
+  --font-sans: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+body { font-family: var(--font-sans); background: var(--color-surface); color: var(--color-text); font-weight: 800; }
+h1,h2 { font-family: var(--font-display); font-weight: 800; }
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+
+/* enable smooth behavior for in-page anchors and programmatic scrolling */
+html { scroll-behavior: smooth; }
+
+/* Page enter animation triggered on route change */
+.page-enter {
+  animation: pageFade 360ms cubic-bezier(.2,.8,.2,1) forwards;
+}
+
+@keyframes pageFade {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.badge { @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold; }
+.badge-green { @apply bg-primary-100 text-primary-800; }
+.badge-orange { @apply bg-orange-100 text-orange-700; }
+.badge-blue { @apply bg-blue-100 text-blue-700; }
+.badge-gray { @apply bg-slate-100 text-slate-600; }
+
+.btn { @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all cursor-pointer; }
+.btn-primary { @apply bg-primary-600 text-white hover:bg-primary-700 active:scale-95; }
+.btn-outline { @apply border border-border bg-card text-text hover:bg-surface; }
+.btn-accent { @apply bg-accent-500 text-white hover:bg-accent-600 active:scale-95; }
+
+.card { @apply bg-card border border-border rounded-2xl; }
+.input { @apply w-full px-4 py-2.5 rounded-xl border border-border bg-card text-text outline-none focus:ring-2 focus:ring-primary-600/30 focus:border-primary-600 transition; }
+.label { @apply block text-sm font-semibold mb-1.5 text-slate-700; }

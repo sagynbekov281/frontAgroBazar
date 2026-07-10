@@ -7,6 +7,7 @@ import { useFavorites } from '../context/FavoritesContext';
 import { useAuth } from '../context/AuthContext';
 import { catLabel } from '../constants';
 import StarRating from '../components/StarRating';
+import CustomSelect from '../components/CustomSelect';
 
 export default function ListingDetail() {
   const { id } = useParams();
@@ -202,9 +203,16 @@ export default function ListingDetail() {
               <div><label className="label">Телефон</label><input className="input text-sm" value={orderForm.phone} onChange={e => setOrderForm(f => ({ ...f, phone: e.target.value }))} /></div>
               <div><label className="label">Жеткирүү күнү</label><input type="date" className="input text-sm" value={orderForm.deliveryDate} onChange={e => setOrderForm(f => ({ ...f, deliveryDate: e.target.value }))} /></div>
               <div><label className="label">Төлөм ыкмасы</label>
-                <select className="input text-sm" value={orderForm.paymentMethod} onChange={e => setOrderForm(f => ({ ...f, paymentMethod: e.target.value }))}>
-                  <option value="cash">Накталай</option><option value="transfer">Которуу</option><option value="card">Карта</option>
-                </select>
+                <CustomSelect
+                  value={orderForm.paymentMethod}
+                  options={[
+                    { value: 'cash', label: 'Накталай' },
+                    { value: 'transfer', label: 'Которуу' },
+                    { value: 'card', label: 'Карта' },
+                  ]}
+                  onChange={value => setOrderForm(f => ({ ...f, paymentMethod: value }))}
+                  placeholder="Төлөм ыкмасы"
+                />
               </div>
               <div><label className="label">Комментарий</label><textarea className="input text-sm" rows={2} value={orderForm.comment} onChange={e => setOrderForm(f => ({ ...f, comment: e.target.value }))} /></div>
               <div className="flex items-center justify-between font-semibold">

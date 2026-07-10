@@ -32,10 +32,7 @@ export default function Login() {
           <div><label className="label">Сырсөз</label><input type="password" required className="input" value={password} onChange={e => setPassword(e.target.value)} /></div>
           <button disabled={loading} className="btn btn-primary w-full py-3">{loading ? 'Кирилүүдө...' : 'Кирүү'}</button>
         </form>
-        <div className="flex gap-2 mt-4 text-xs text-center">
-          <div className="flex-1 bg-primary-50 rounded-lg p-2 text-primary-700"><div className="font-semibold">Фермер</div>farmer@test.kg / 123456</div>
-          <div className="flex-1 bg-orange-50 rounded-lg p-2 text-orange-700"><div className="font-semibold">Сатып алуучу</div>buyer@test.kg / 123456</div>
-        </div>
+ 
       </div>
       <p className="text-center text-sm text-muted mt-5">Аккаунт жокпу? <Link to="/register" className="text-primary-600 font-semibold hover:underline">Катталуу</Link></p>
     </div>

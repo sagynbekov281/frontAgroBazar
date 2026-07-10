@@ -128,6 +128,10 @@ export interface ChatMessage {
 
 export interface ChatRoom {
   id: string;
+  isGroup: boolean;
+  name?: string;
+  avatar?: string;
+  ownerId?: string;
   participants: { id: string; name: string; avatar?: string }[];
   lastMessage?: string;
   lastAt?: string;

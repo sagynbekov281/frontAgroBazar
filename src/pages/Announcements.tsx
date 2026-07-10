@@ -6,6 +6,7 @@ import type { Announcement } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { CATEGORIES, REGIONS, catLabel } from '../constants';
 import type { ListingCategory } from '../types';
+import CustomSelect from '../components/CustomSelect';
 
 export default function Announcements() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -54,16 +55,28 @@ export default function Announcements() {
             <form onSubmit={handleSubmit} className="space-y-3">
               <div><label className="label">Аталышы *</label><input required className="input text-sm" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Мис: 100 тонна картошка керек" /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="label">Категория</label>
-                  <select className="input text-sm" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as ListingCategory }))}>
-                    {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.emoji} {c.labelRu}</option>)}
-                  </select>
+                <div>
+                  <label className="label">Категория</label>
+                  <CustomSelect
+                    value={form.category}
+                    options={[
+                      ...CATEGORIES.map(c => ({ value: c.value, label: `${c.emoji} ${c.labelRu}` })),
+                    ]}
+                    onChange={value => setForm(f => ({ ...f, category: value as ListingCategory }))}
+                    placeholder="Категория">
+                  </CustomSelect>
                 </div>
-                <div><label className="label">Регион</label>
-                  <select className="input text-sm" value={form.region} onChange={e => setForm(f => ({ ...f, region: e.target.value }))}>
-                    <option value="">Баары</option>
-                    {REGIONS.map(r => <option key={r}>{r}</option>)}
-                  </select>
+                <div>
+                  <label className="label">Регион</label>
+                  <CustomSelect
+                    value={form.region}
+                    options={[
+                      { value: '', label: 'Баары' },
+                      ...REGIONS.map(r => ({ value: r, label: r })),
+                    ]}
+                    onChange={value => setForm(f => ({ ...f, region: value }))}
+                    placeholder="Баары">
+                  </CustomSelect>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">

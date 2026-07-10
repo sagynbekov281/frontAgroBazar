@@ -4,6 +4,7 @@ import { Sprout } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { REGIONS, ROLE_LABELS } from '../constants';
 import type { UserRole } from '../types';
+import CustomSelect from '../components/CustomSelect';
 
 const ROLES: UserRole[] = ['farmer', 'buyer', 'cooperative', 'exporter', 'transport', 'company'];
 const ROLE_ICONS: Record<string, string> = { farmer: '🌾', buyer: '🛒', cooperative: '🤝', exporter: '✈️', transport: '🚛', company: '🏢' };
@@ -65,10 +66,15 @@ export default function Register() {
           </div>
           <div><label className="label">Сырсөз *</label><input required type="password" minLength={6} className="input text-sm" value={form.password} onChange={e => upd('password', e.target.value)} /></div>
           <div><label className="label">Регион</label>
-            <select className="input text-sm" value={form.region} onChange={e => upd('region', e.target.value)}>
-              <option value="">Тандаңыз</option>
-              {REGIONS.map(r => <option key={r}>{r}</option>)}
-            </select>
+            <CustomSelect
+              value={form.region}
+              options={[
+                { value: '', label: 'Тандаңыз' },
+                ...REGIONS.map(r => ({ value: r, label: r })),
+              ]}
+              onChange={value => upd('region', value)}
+              placeholder="Тандаңыз"
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div><label className="label">Район</label><input className="input text-sm" value={form.district} onChange={e => upd('district', e.target.value)} /></div>

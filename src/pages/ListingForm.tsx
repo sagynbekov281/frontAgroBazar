@@ -4,6 +4,7 @@ import { Plus, X } from 'lucide-react';
 import { api } from '../api/client';
 import { CATEGORIES, REGIONS } from '../constants';
 import type { ListingCategory, BulkPrice } from '../types';
+import CustomSelect from '../components/CustomSelect';
 
 const PLACEHOLDER_IMGS = [
   'https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=600&q=80',
@@ -61,9 +62,12 @@ export default function ListingForm() {
           <h2 className="font-semibold">Негизги маалымат</h2>
           <div><label className="label">Аталышы *</label><input required className="input" value={form.title} onChange={e => upd('title', e.target.value)} /></div>
           <div><label className="label">Категория *</label>
-            <select required className="input" value={form.category} onChange={e => upd('category', e.target.value as ListingCategory)}>
-              {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.emoji} {c.labelRu} / {c.labelKy}</option>)}
-            </select>
+            <CustomSelect
+              value={form.category}
+              options={CATEGORIES.map(c => ({ value: c.value, label: `${c.emoji} ${c.labelRu} / ${c.labelKy}` }))}
+              onChange={value => upd('category', value as ListingCategory)}
+              placeholder="Категория"
+            />
           </div>
           <div><label className="label">Сүрөттөмө *</label><textarea required rows={4} className="input" value={form.description} onChange={e => upd('description', e.target.value)} /></div>
         </div>
@@ -104,10 +108,12 @@ export default function ListingForm() {
         <div className="card p-5 space-y-4">
           <h2 className="font-semibold">Жайгашкан жери</h2>
           <div><label className="label">Регион *</label>
-            <select required className="input" value={form.region} onChange={e => upd('region', e.target.value)}>
-              <option value="">Тандаңыз</option>
-              {REGIONS.map(r => <option key={r}>{r}</option>)}
-            </select>
+            <CustomSelect
+              value={form.region}
+              options={[{ value: '', label: 'Тандаңыз' }, ...REGIONS.map(r => ({ value: r, label: r }))]}
+              onChange={value => upd('region', value)}
+              placeholder="Тандаңыз"
+            />
           </div>
           <div><label className="label">Район</label><input className="input" value={form.district} onChange={e => upd('district', e.target.value)} /></div>
         </div>

@@ -5,6 +5,7 @@ import './index.css'
 import App from './App'
 import { AuthProvider } from './context/AuthContext'
 import { FavoritesProvider } from './context/FavoritesContext'
+import { SocketProvider } from './context/SocketContext'
 import ScrollToTop from './components/ScrollToTop'
 
 createRoot(document.getElementById('root')!).render(
@@ -12,9 +13,11 @@ createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <ScrollToTop />
       <AuthProvider>
-        <FavoritesProvider>
-          <App />
-        </FavoritesProvider>
+        <SocketProvider>
+          <FavoritesProvider>
+            <App />
+          </FavoritesProvider>
+        </SocketProvider>
       </AuthProvider>
     </BrowserRouter>
   </StrictMode>,

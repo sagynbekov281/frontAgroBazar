@@ -24,6 +24,7 @@ export const api = {
   login: (d: any) => req('/auth/login', { method: 'POST', body: JSON.stringify(d) }),
   me: () => req('/auth/me'),
   getUser: (id: string) => req(`/auth/user/${id}`),
+  searchUsers: (q: string) => req(`/auth/search?q=${encodeURIComponent(q)}`),
 
   // listings
   getListings: (p?: Record<string, string>) => req(`/listings${qs(p)}`),
@@ -52,6 +53,9 @@ export const api = {
   getMessages: (roomId: string) => req(`/chat/rooms/${roomId}/messages`),
   sendMessage: (roomId: string, text: string) => req(`/chat/rooms/${roomId}/messages`, { method: 'POST', body: JSON.stringify({ text }) }),
   startChat: (userId: string) => req('/chat/start', { method: 'POST', body: JSON.stringify({ userId }) }),
+  createGroup: (name: string, userIds: string[]) => req('/chat/groups', { method: 'POST', body: JSON.stringify({ name, userIds }) }),
+  addGroupMember: (roomId: string, userId: string) => req(`/chat/groups/${roomId}/members`, { method: 'POST', body: JSON.stringify({ userId }) }),
+  
 
   // reviews
   getReviews: (userId: string) => req(`/reviews/${userId}`),

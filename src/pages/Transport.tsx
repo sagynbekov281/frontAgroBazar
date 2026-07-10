@@ -5,6 +5,7 @@ import { api } from '../api/client';
 import type { TransportListing } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { REGIONS, TRANSPORT_TYPES } from '../constants';
+import CustomSelect from '../components/CustomSelect';
 
 export default function Transport() {
   const [list, setList] = useState<TransportListing[]>([]);
@@ -53,14 +54,22 @@ export default function Transport() {
       </div>
 
       <div className="flex flex-wrap gap-3 mb-6">
-        <select className="input text-sm w-auto" value={filterRegion} onChange={e => setFilterRegion(e.target.value)}>
-          <option value="">Бардык аймак</option>
-          {REGIONS.map(r => <option key={r}>{r}</option>)}
-        </select>
-        <select className="input text-sm w-auto" value={filterType} onChange={e => setFilterType(e.target.value)}>
-          <option value="">Бардык унаа</option>
-          {Object.entries(TRANSPORT_TYPES).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-        </select>
+        <div className="w-auto min-w-[220px]">
+          <CustomSelect
+            value={filterRegion}
+            options={[{ value: '', label: 'Бардык аймак' }, ...REGIONS.map(r => ({ value: r, label: r }))]}
+            onChange={value => setFilterRegion(value)}
+            placeholder="Бардык аймак"
+          />
+        </div>
+        <div className="w-auto min-w-[220px]">
+          <CustomSelect
+            value={filterType}
+            options={[{ value: '', label: 'Бардык унаа' }, ...Object.entries(TRANSPORT_TYPES).map(([v, l]) => ({ value: v, label: l }))]}
+            onChange={value => setFilterType(value)}
+            placeholder="Бардык унаа"
+          />
+        </div>
       </div>
 
       {loading ? <div className="py-20 text-center text-muted">Жүктөлүүдө...</div> : (
@@ -105,18 +114,23 @@ export default function Transport() {
             <h2 className="font-bold text-lg mb-4">Унаа кошуу</h2>
             <form onSubmit={handleSubmit} className="space-y-3">
               <div><label className="label">Унаа түрү</label>
-                <select className="input text-sm" value={form.type} onChange={e => upd('type', e.target.value)}>
-                  {Object.entries(TRANSPORT_TYPES).map(([v, l]) => <option key={v} value={v}>{ICONS[v]} {l}</option>)}
-                </select>
+                <CustomSelect
+                  value={form.type}
+                  options={Object.entries(TRANSPORT_TYPES).map(([v, l]) => ({ value: v, label: `${ICONS[v]} ${l}` }))}
+                  onChange={value => upd('type', value)}
+                  placeholder="Унаа түрү"
+                />
               </div>
               <div><label className="label">Жүк көлөмү</label><input required className="input text-sm" placeholder="мис: 20 тонна" value={form.capacity} onChange={e => upd('capacity', e.target.value)} /></div>
               <div><label className="label">Маршрут</label><input required className="input text-sm" placeholder="мис: Ош — Бишкек" value={form.route} onChange={e => upd('route', e.target.value)} /></div>
               <div><label className="label">Бош күндөр</label><input required className="input text-sm" placeholder="мис: Дүйшөмбүдөн — Жумага" value={form.availableDates} onChange={e => upd('availableDates', e.target.value)} /></div>
               <div><label className="label">Аймак</label>
-                <select className="input text-sm" value={form.region} onChange={e => upd('region', e.target.value)}>
-                  <option value="">Тандаңыз</option>
-                  {REGIONS.map(r => <option key={r}>{r}</option>)}
-                </select>
+                <CustomSelect
+                  value={form.region}
+                  options={[{ value: '', label: 'Тандаңыз' }, ...REGIONS.map(r => ({ value: r, label: r }))]}
+                  onChange={value => upd('region', value)}
+                  placeholder="Тандаңыз"
+                />
               </div>
               <div><label className="label">Баасы (сом, кааласа)</label><input type="number" className="input text-sm" value={form.price} onChange={e => upd('price', e.target.value)} /></div>
               <div className="flex gap-2 pt-2">

@@ -12,12 +12,18 @@ export default function Favorites() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (ids.length === 0) { setLoading(false); return; }
+    if (ids.length === 0) {
+      setListings([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
     api.getListings().then(d => {
       const all: Listing[] = d.listings || [];
       setListings(all.filter(l => ids.includes(l.id)));
     }).finally(() => setLoading(false));
-  }, [ids.join(',')]);
+  }, [ids]);
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">

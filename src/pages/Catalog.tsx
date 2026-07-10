@@ -16,7 +16,7 @@ export default function Catalog() {
   const filters = {
     category: params.get('category') || '',
     region: params.get('region') || '',
-    organic: params.get('organic') || '',
+    organic: params.get('organic') || '', 
     exportReady: params.get('exportReady') || '',
     hasDelivery: params.get('hasDelivery') || '',
     vip: params.get('vip') || '',

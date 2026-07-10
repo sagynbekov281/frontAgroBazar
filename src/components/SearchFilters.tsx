@@ -1,38 +1,60 @@
 import { CATEGORIES, REGIONS } from '../constants';
+import CustomSelect from './CustomSelect';
 
 interface Filters { category: string; region: string; organic: string; exportReady: string; hasDelivery: string; vip: string; sort: string; }
 interface Props { filters: Filters; onChange(f: Partial<Filters>): void; }
 
 export default function SearchFilters({ filters, onChange }: Props) {
+  const categoryOptions = [
+    { value: '', label: 'Баары' },
+    ...CATEGORIES.map(c => ({ value: c.value, label: `${c.emoji} ${c.labelRu}` })),
+  ];
+
+  const regionOptions = [
+    { value: '', label: 'Баары' },
+    ...REGIONS.map(r => ({ value: r, label: r })),
+  ];
+
+  const sortOptions = [
+    { value: '', label: 'Жаңы' },
+    { value: 'price_asc', label: 'Баасы: төмөн' },
+    { value: 'price_desc', label: 'Баасы: жогору' },
+    { value: 'popular', label: 'Популярдуу' },
+    { value: 'vip', label: 'VIP' },
+  ];
+
   return (
     <div className="card p-4 space-y-4">
       <h3 className="font-semibold text-sm">Фильтрлер</h3>
 
       <div>
         <label className="label">Категория</label>
-        <select className="input text-sm" value={filters.category} onChange={e => onChange({ category: e.target.value })}>
-          <option value="">Баары</option>
-          {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.emoji} {c.labelRu}</option>)}
-        </select>
+        <CustomSelect
+          value={filters.category}
+          options={categoryOptions}
+          onChange={value => onChange({ category: value })}
+          placeholder="Баары"
+        />
       </div>
 
       <div>
         <label className="label">Регион</label>
-        <select className="input text-sm" value={filters.region} onChange={e => onChange({ region: e.target.value })}>
-          <option value="">Баары</option>
-          {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
-        </select>
+        <CustomSelect
+          value={filters.region}
+          options={regionOptions}
+          onChange={value => onChange({ region: value })}
+          placeholder="Баары"
+        />
       </div>
 
       <div>
         <label className="label">Сорттоо</label>
-        <select className="input text-sm" value={filters.sort} onChange={e => onChange({ sort: e.target.value })}>
-          <option value="">Жаңы</option>
-          <option value="price_asc">Баасы: төмөн</option>
-          <option value="price_desc">Баасы: жогору</option>
-          <option value="popular">Популярдуу</option>
-          <option value="vip">VIP</option>
-        </select>
+        <CustomSelect
+          value={filters.sort}
+          options={sortOptions}
+          onChange={value => onChange({ sort: value })}
+          placeholder="Жаңы"
+        />
       </div>
 
       <div className="space-y-2">

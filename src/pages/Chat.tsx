@@ -1,10 +1,54 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Send, ArrowLeft, Users, Plus, X } from 'lucide-react';
+import { Send, ArrowLeft, Users, Plus, X, Reply, Trash2, Check, CheckCheck, Image as ImageIcon } from 'lucide-react';
 import { api } from '../api/client';
 import type { ChatRoom, ChatMessage, User } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
+
+const MAX_IMAGE_BYTES = 400_000;
+
+function compressImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('read_error'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('img_error'));
+      img.onload = () => {
+        const maxDim = 1000;
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) { height = Math.round(height * maxDim / width); width = maxDim; }
+          else { width = Math.round(width * maxDim / height); height = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, width, height);
+        let quality = 0.8;
+        let dataUrl = canvas.toDataURL('image/jpeg', quality);
+        while (dataUrl.length > MAX_IMAGE_BYTES && quality > 0.3) {
+          quality -= 0.1;
+          dataUrl = canvas.toDataURL('image/jpeg', quality);
+        }
+        if (dataUrl.length > MAX_IMAGE_BYTES) { reject(new Error('too_big')); return; }
+        resolve(dataUrl);
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function formatLastSeen(iso?: string) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  const time = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  return sameDay ? `бүгүн ${time}` : `${d.toLocaleDateString('ru-RU')} ${time}`;
+}
 
 export default function Chat() {
   const { roomId } = useParams();
@@ -14,10 +58,15 @@ export default function Chat() {
   const [sending, setSending] = useState(false);
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [typingUsers, setTypingUsers] = useState<Record<string, string>>({});
+  const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
+  const [otherUser, setOtherUser] = useState<User | null>(null);
+  const [imgError, setImgError] = useState('');
   const { user } = useAuth();
   const { socket, onlineUsers } = useSocket();
   const bottomRef = useRef<HTMLDivElement>(null);
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const readSentRef = useRef<string | null>(null);
 
   function loadRooms() {
     api.getRooms().then(d => setRooms(d.rooms || [])).catch(() => {});
@@ -26,7 +75,7 @@ export default function Chat() {
   useEffect(() => { loadRooms(); }, []);
 
   useEffect(() => {
-    if (!roomId) { setMessages([]); return; }
+    if (!roomId) { setMessages([]); setReplyingTo(null); return; }
     api.getMessages(roomId).then(d => setMessages(d.messages || [])).catch(() => {});
     socket?.emit('room:join', roomId);
   }, [roomId, socket]);
@@ -34,6 +83,25 @@ export default function Chat() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // подтягиваем данные собеседника (для "был в сети")
+  useEffect(() => {
+    const room = rooms.find(r => r.id === roomId);
+    if (!room || room.isGroup) { setOtherUser(null); return; }
+    const other = room.participants.find(p => p.id !== user?.id);
+    if (!other) { setOtherUser(null); return; }
+    api.getUser(other.id).then(d => setOtherUser(d.user)).catch(() => {});
+  }, [roomId, rooms, user?.id, onlineUsers]);
+
+  // отметить сообщения прочитанными
+  useEffect(() => {
+    if (!roomId || !socket) return;
+    const hasUnread = messages.some(m => m.senderId !== user?.id && !(m.readBy || []).includes(user?.id || ''));
+    if (hasUnread && readSentRef.current !== roomId + messages.length) {
+      readSentRef.current = roomId + messages.length;
+      socket.emit('message:read', { roomId });
+    }
+  }, [messages, roomId, socket, user?.id]);
 
   useEffect(() => {
     if (!socket) return;
@@ -50,12 +118,29 @@ export default function Chat() {
         return n;
       });
     }
+    function onRead({ roomId: rId, userId }: any) {
+      if (rId !== roomId) return;
+      setMessages(prev => prev.map(m => m.senderId === user?.id
+        ? { ...m, readBy: Array.from(new Set([...(m.readBy || []), userId])) }
+        : m));
+    }
+    function onDeleted({ roomId: rId, messageId }: any) {
+      if (rId !== roomId) return;
+      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, deleted: true, text: '', fileUrl: undefined } : m));
+    }
+    function onError({ message }: any) { setImgError(message); setTimeout(() => setImgError(''), 4000); }
 
     socket.on('message:new', onNewMessage);
     socket.on('typing', onTyping);
+    socket.on('message:read', onRead);
+    socket.on('message:deleted', onDeleted);
+    socket.on('message:error', onError);
     return () => {
       socket.off('message:new', onNewMessage);
       socket.off('typing', onTyping);
+      socket.off('message:read', onRead);
+      socket.off('message:deleted', onDeleted);
+      socket.off('message:error', onError);
     };
   }, [socket, roomId, user?.id]);
 
@@ -74,17 +159,41 @@ export default function Chat() {
     if (!text.trim() || !roomId) return;
     setSending(true);
     const value = text.trim();
+    const replyId = replyingTo?.id;
     setText('');
+    setReplyingTo(null);
     try {
       if (socket) {
-        socket.emit('message:send', { roomId, text: value });
+        socket.emit('message:send', { roomId, text: value, replyTo: replyId });
       } else {
-        await api.sendMessage(roomId, value);
+        await api.sendMessage(roomId, value, replyId);
         const d = await api.getMessages(roomId);
         setMessages(d.messages || []);
       }
     } catch (e) { console.error(e); }
     finally { setSending(false); }
+  }
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !roomId) return;
+    if (!file.type.startsWith('image/')) { setImgError('Сүрөт гана жөнөтсө болот'); setTimeout(() => setImgError(''), 4000); return; }
+    try {
+      const dataUrl = await compressImage(file);
+      if (socket) {
+        socket.emit('message:send', { roomId, type: 'image', fileUrl: dataUrl });
+      }
+    } catch {
+      setImgError('Сүрөт өтө чоң же ачылбай жатат. Башка сүрөт тандаңыз.');
+      setTimeout(() => setImgError(''), 4000);
+    }
+  }
+
+  async function handleDelete(msg: ChatMessage) {
+    if (!roomId) return;
+    if (socket) socket.emit('message:delete', { roomId, messageId: msg.id });
+    else await api.deleteMessage(roomId, msg.id).catch(() => {});
   }
 
   const activeRoom = rooms.find(r => r.id === roomId);
@@ -104,10 +213,25 @@ export default function Chat() {
   }
 
   const typingText = Object.values(typingUsers).join(', ');
+  const otherParticipantId = activeRoom && !activeRoom.isGroup ? activeRoom.participants.find(p => p.id !== user?.id)?.id : undefined;
+
+  function messageStatus(m: ChatMessage) {
+    if (m.senderId !== user?.id || activeRoom?.isGroup) return null;
+    const readByOther = otherParticipantId ? (m.readBy || []).includes(otherParticipantId) : false;
+    return readByOther
+      ? <CheckCheck size={14} className="inline text-sky-300" />
+      : <Check size={14} className="inline text-white/60" />;
+  }
+
+  function findReplySnippet(id?: string) {
+    if (!id) return null;
+    const m = messages.find(x => x.id === id);
+    if (!m) return null;
+    return { senderName: m.senderName, text: m.deleted ? 'Билдирүү өчүрүлгөн' : (m.type === 'image' ? '📷 Сүрөт' : m.text) };
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 h-[calc(100vh-140px)] flex gap-4">
-      {/* rooms list */}
       <div className={`${roomId ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-72 shrink-0 card overflow-hidden`}>
         <div className="p-4 border-b border-border font-semibold flex items-center justify-between">
           <span>Билдирүүлөр</span>
@@ -137,7 +261,6 @@ export default function Chat() {
         </div>
       </div>
 
-      {/* chat window */}
       <div className={`${!roomId ? 'hidden md:flex' : 'flex'} flex-col flex-1 card overflow-hidden`}>
         {!roomId ? (
           <div className="flex-1 flex items-center justify-center text-muted flex-col gap-3">
@@ -152,26 +275,61 @@ export default function Chat() {
               <div className="w-9 h-9 rounded-full bg-primary-100 flex items-center justify-center font-bold text-primary-700">
                 {activeRoom?.isGroup ? <Users size={16} /> : (activeRoom ? roomInitial(activeRoom) : '?')}
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="font-semibold">{activeRoom ? roomLabel(activeRoom) : 'Колдонуучу'}</div>
-                {activeRoom?.isGroup && (
+                {activeRoom?.isGroup ? (
                   <div className="text-xs text-muted">{activeRoom.participants.length} мүчө</div>
+                ) : (
+                  <div className="text-xs text-muted">
+                    {otherParticipantId && onlineUsers.has(otherParticipantId)
+                      ? <span className="text-green-600">онлайн</span>
+                      : otherUser?.lastSeen ? `акыркы жолу ${formatLastSeen(otherUser.lastSeen)}` : ''}
+                  </div>
                 )}
                 {typingText && <div className="text-xs text-primary-600">{typingText} жазып жатат...</div>}
               </div>
             </div>
+
+            {imgError && <div className="px-4 py-2 bg-red-50 text-red-600 text-xs">{imgError}</div>}
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {messages.length === 0 ? (
                 <div className="text-center text-muted text-sm py-10">Билдирүүлөр жок. Биринчи болуп жазыңыз!</div>
               ) : messages.map(m => {
                 const isMe = m.senderId === user?.id;
+                const snippet = findReplySnippet(m.replyTo);
                 return (
-                  <div key={m.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[70%] px-4 py-2.5 rounded-2xl text-sm ${isMe ? 'bg-primary-600 text-white rounded-br-sm' : 'bg-surface border border-border rounded-bl-sm'}`}>
-                      {!isMe && activeRoom?.isGroup && <div className="font-semibold text-xs mb-0.5 text-primary-600">{m.senderName}</div>}
-                      <div>{m.text}</div>
-                      <div className={`text-[10px] mt-0.5 ${isMe ? 'text-white/60' : 'text-muted'}`}>{new Date(m.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</div>
+                  <div key={m.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group`}>
+                    {isMe && !m.deleted && (
+                      <div className="opacity-0 group-hover:opacity-100 transition flex items-center gap-1 mr-1 self-center">
+                        <button onClick={() => setReplyingTo(m)} className="p-1 rounded hover:bg-surface text-muted" title="Жооп берүү"><Reply size={14} /></button>
+                        <button onClick={() => handleDelete(m)} className="p-1 rounded hover:bg-surface text-red-500" title="Өчүрүү"><Trash2 size={14} /></button>
+                      </div>
+                    )}
+                    {!isMe && !m.deleted && (
+                      <div className="opacity-0 group-hover:opacity-100 transition flex items-center mr-1 self-center">
+                        <button onClick={() => setReplyingTo(m)} className="p-1 rounded hover:bg-surface text-muted" title="Жооп берүү"><Reply size={14} /></button>
+                      </div>
+                    )}
+                    <div className={`max-w-[70%] px-4 py-2.5 rounded-2xl text-sm ${isMe ? 'bg-primary-600 text-white rounded-br-sm' : 'bg-surface border border-border rounded-bl-sm'} ${m.deleted ? 'italic opacity-60' : ''}`}>
+                      {!isMe && activeRoom?.isGroup && !m.deleted && <div className="font-semibold text-xs mb-0.5 text-primary-600">{m.senderName}</div>}
+                      {snippet && !m.deleted && (
+                        <div className={`text-xs mb-1.5 px-2 py-1 rounded border-l-2 ${isMe ? 'border-white/40 bg-white/10' : 'border-primary-400 bg-black/5'}`}>
+                          <div className="font-semibold">{snippet.senderName}</div>
+                          <div className="truncate opacity-80">{snippet.text}</div>
+                        </div>
+                      )}
+                      {m.deleted ? (
+                        <div className="flex items-center gap-1">🚫 Билдирүү өчүрүлгөн</div>
+                      ) : m.type === 'image' && m.fileUrl ? (
+                        <img src={m.fileUrl} alt="фото" className="rounded-lg max-w-full max-h-72 mb-1" />
+                      ) : (
+                        <div className="whitespace-pre-wrap break-words">{m.text}</div>
+                      )}
+                      <div className={`text-[10px] mt-0.5 flex items-center gap-1 ${isMe ? 'text-white/60 justify-end' : 'text-muted'}`}>
+                        {new Date(m.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                        {!m.deleted && messageStatus(m)}
+                      </div>
                     </div>
                   </div>
                 );
@@ -179,7 +337,21 @@ export default function Chat() {
               <div ref={bottomRef} />
             </div>
 
-            <form onSubmit={handleSend} className="p-3 border-t border-border flex gap-2">
+            {replyingTo && (
+              <div className="px-3 pt-2 flex items-center gap-2 border-t border-border">
+                <div className="flex-1 min-w-0 bg-surface rounded-lg px-3 py-1.5 border-l-2 border-primary-500">
+                  <div className="text-xs font-semibold text-primary-600">{replyingTo.senderName}</div>
+                  <div className="text-xs text-muted truncate">{replyingTo.deleted ? 'Билдирүү өчүрүлгөн' : (replyingTo.type === 'image' ? '📷 Сүрөт' : replyingTo.text)}</div>
+                </div>
+                <button onClick={() => setReplyingTo(null)} className="p-1.5 rounded-lg hover:bg-surface"><X size={16} /></button>
+              </div>
+            )}
+
+            <form onSubmit={handleSend} className="p-3 border-t border-border flex gap-2 items-center">
+              <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileSelect} className="hidden" />
+              <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2.5 rounded-lg hover:bg-surface text-muted shrink-0" title="Сүрөт жөнөтүү">
+                <ImageIcon size={19} />
+              </button>
               <input value={text} onChange={e => handleTextChange(e.target.value)} placeholder="Билдирүү жазыңыз..."
                 className="input flex-1 text-sm" />
               <button disabled={sending || !text.trim()} className="btn btn-primary px-4 py-2.5">

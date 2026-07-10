@@ -19,7 +19,10 @@ export interface User {
   createdAt: string;
   telegram?: string;
   whatsapp?: string;
+  lastSeen?: string;
 }
+
+
 
 export type ListingCategory =
   | 'vegetables' | 'fruits' | 'grain' | 'dairy' | 'meat' | 'poultry'
@@ -124,6 +127,11 @@ export interface ChatMessage {
   text: string;
   createdAt: string;
   read: boolean;
+  readBy?: string[];
+  replyTo?: string;
+  deleted?: boolean;
+  type?: 'text' | 'image';
+  fileUrl?: string;
 }
 
 export interface ChatRoom {

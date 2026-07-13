@@ -51,6 +51,7 @@ export const api = {
   addGroupMember: (roomId: string, userId: string) => req(`/chat/groups/${roomId}/members`, { method: 'POST', body: JSON.stringify({ userId }) }),
   markRead: (roomId: string) => req(`/chat/rooms/${roomId}/read`, { method: 'POST' }),
   deleteMessage: (roomId: string, messageId: string) => req(`/chat/rooms/${roomId}/messages/${messageId}`, { method: 'DELETE' }),
+  leaveGroup: (roomId: string) => req(`/chat/groups/${roomId}/leave`, { method: 'POST' }),
 
   getReviews: (userId: string) => req(`/reviews/${userId}`),
   createReview: (d: any) => req('/reviews', { method: 'POST', body: JSON.stringify(d) }),

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { Send, ArrowLeft, Users, Plus, X, Reply, Trash2, Check, CheckCheck, Image as ImageIcon } from 'lucide-react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { ChatRoom, ChatMessage, User } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
+import { Send, ArrowLeft, Users, Plus, X, Reply, Trash2,  Image as ImageIcon, LogOut } from 'lucide-react';
+
 
 const MAX_IMAGE_BYTES = 400_000;
 
@@ -64,9 +65,24 @@ export default function Chat() {
   const { user } = useAuth();
   const { socket, onlineUsers } = useSocket();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const readSentRef = useRef<string | null>(null);
+  const navigate = useNavigate();
+  const [leaving, setLeaving] = useState(false);
+
+  async function handleLeaveGroup() {
+    if (!roomId || !activeRoom?.isGroup) return;
+    if (!confirm('Бул топтон чыгууну каалайсызбы?')) return;
+    setLeaving(true);
+    try {
+      await api.leaveGroup(roomId);
+      loadRooms();
+      navigate('/chat');
+    } catch (e) { console.error(e); }
+    finally { setLeaving(false); }
+  }
 
   function loadRooms() {
     api.getRooms().then(d => setRooms(d.rooms || [])).catch(() => {});
@@ -80,8 +96,9 @@ export default function Chat() {
     socket?.emit('room:join', roomId);
   }, [roomId, socket]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+useEffect(() => {
+    const el = messagesContainerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
   // подтягиваем данные собеседника (для "был в сети")
@@ -215,12 +232,14 @@ export default function Chat() {
   const typingText = Object.values(typingUsers).join(', ');
   const otherParticipantId = activeRoom && !activeRoom.isGroup ? activeRoom.participants.find(p => p.id !== user?.id)?.id : undefined;
 
-  function messageStatus(m: ChatMessage) {
+ function messageStatus(m: ChatMessage) {
     if (m.senderId !== user?.id || activeRoom?.isGroup) return null;
     const readByOther = otherParticipantId ? (m.readBy || []).includes(otherParticipantId) : false;
-    return readByOther
-      ? <CheckCheck size={14} className="inline text-sky-300" />
-      : <Check size={14} className="inline text-white/60" />;
+    return (
+      <span className={`inline-block font-bold ${readByOther ? 'text-sky-300' : 'text-white/60'}`} style={{ letterSpacing: '-2px' }}>
+        {readByOther ? '✓✓' : '✓'}
+      </span>
+    );
   }
 
   function findReplySnippet(id?: string) {
@@ -275,7 +294,7 @@ export default function Chat() {
               <div className="w-9 h-9 rounded-full bg-primary-100 flex items-center justify-center font-bold text-primary-700">
                 {activeRoom?.isGroup ? <Users size={16} /> : (activeRoom ? roomInitial(activeRoom) : '?')}
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="font-semibold">{activeRoom ? roomLabel(activeRoom) : 'Колдонуучу'}</div>
                 {activeRoom?.isGroup ? (
                   <div className="text-xs text-muted">{activeRoom.participants.length} мүчө</div>
@@ -288,11 +307,17 @@ export default function Chat() {
                 )}
                 {typingText && <div className="text-xs text-primary-600">{typingText} жазып жатат...</div>}
               </div>
+              {activeRoom?.isGroup && (
+                <button onClick={handleLeaveGroup} disabled={leaving}
+                  className="p-2 rounded-lg hover:bg-red-50 text-red-500 shrink-0" title="Топтон чыгуу">
+                  <LogOut size={18} />
+                </button>
+              )}
             </div>
 
             {imgError && <div className="px-4 py-2 bg-red-50 text-red-600 text-xs">{imgError}</div>}
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3">
               {messages.length === 0 ? (
                 <div className="text-center text-muted text-sm py-10">Билдирүүлөр жок. Биринчи болуп жазыңыз!</div>
               ) : messages.map(m => {

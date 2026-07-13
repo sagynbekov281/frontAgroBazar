@@ -1,11 +1,20 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { MapPin, Star, Heart, Truck, BadgeCheck, Crown } from 'lucide-react';
 import type { Listing } from '../types';
 import { useFavorites } from '../context/FavoritesContext';
+import { useAuth } from '../context/AuthContext';
 import { catLabel } from '../constants';
 
 export default function ListingCard({ l }: { l: Listing }) {
   const { toggle, has } = useFavorites();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  function handleFavClick(e: React.MouseEvent) {
+    e.preventDefault();
+    if (!user) { navigate('/login', { state: { from: `/listing/${l.id}` } }); return; }
+    toggle(l.id);
+  }
 
   return (
     <div className={`card overflow-hidden flex flex-col hover:shadow-md transition-shadow ${l.vip ? 'ring-1 ring-accent-400' : ''}`}>
@@ -13,7 +22,7 @@ export default function ListingCard({ l }: { l: Listing }) {
         <Link to={`/listing/${l.id}`} className="block aspect-[4/3] bg-slate-100 overflow-hidden">
           <img src={l.images[0]} alt={l.title} className="w-full h-full object-cover hover:scale-105 transition-transform duration-300" />
         </Link>
-        <button onClick={() => toggle(l.id)} className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/90 backdrop-blur flex items-center justify-center shadow">
+        <button onClick={handleFavClick} className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/90 backdrop-blur flex items-center justify-center shadow">
           <Heart size={15} className={has(l.id) ? 'fill-red-500 text-red-500' : 'text-slate-400'} />
         </button>
         {l.vip && <span className="absolute top-2 left-2 badge badge-orange"><Crown size={10} /> VIP</span>}

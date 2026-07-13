@@ -31,7 +31,7 @@ export default function ListingDetail() {
   }, [id]);
 
   async function handleOrder() {
-    if (!user) { navigate('/login'); return; }
+    if (!user) { navigate('/login', { state: { from: `/listing/${listing!.id}` } }); return; }
     setPlacing(true);
     try {
       await api.createOrder({ listingId: listing!.id, qty, ...orderForm });
@@ -42,7 +42,7 @@ export default function ListingDetail() {
   }
 
   async function handleReview() {
-    if (!user) { navigate('/login'); return; }
+    if (!user) { navigate('/login', { state: { from: `/listing/${listing!.id}` } }); return; }
     await api.createReview({ targetId: listing!.ownerId, rating: reviewRating, comment: reviewText });
     const d = await api.getReviews(listing!.id);
     setReviews(d.reviews || []);
@@ -50,9 +50,14 @@ export default function ListingDetail() {
   }
 
   async function handleChat() {
-    if (!user) { navigate('/login'); return; }
+    if (!user) { navigate('/login', { state: { from: `/listing/${listing!.id}` } }); return; }
     const d = await api.startChat(listing!.ownerId);
     navigate(`/chat/${d.roomId}`);
+  }
+
+  function handleFav() {
+    if (!user) { navigate('/login', { state: { from: `/listing/${listing!.id}` } }); return; }
+    toggle(listing!.id);
   }
 
   if (!listing) return <div className="py-32 text-center text-muted">Жүктөлүүдө...</div>;
@@ -133,10 +138,10 @@ export default function ListingDetail() {
             <span className="text-sm text-muted">{listing.unit}</span>
           </div>
           <div className="flex gap-2 flex-wrap">
-            <button onClick={() => setShowOrder(true)} className="btn btn-primary flex-1">Заказ берүү</button>
+            <button onClick={() => { if (!user) { navigate('/login', { state: { from: `/listing/${listing.id}` } }); return; } setShowOrder(true); }} className="btn btn-primary flex-1">Заказ берүү</button>
             <button onClick={handleChat} className="btn btn-outline gap-1.5"><MessageSquare size={16} /> Чат</button>
             <a href={`tel:+${listing.ownerId}`} className="btn btn-outline gap-1.5"><Phone size={16} /></a>
-            <button onClick={() => toggle(listing.id)} className={`btn btn-outline ${has(listing.id) ? 'text-red-500' : ''}`}>
+            <button onClick={handleFav} className={`btn btn-outline ${has(listing.id) ? 'text-red-500' : ''}`}>
               <Heart size={16} className={has(listing.id) ? 'fill-red-500' : ''} />
             </button>
           </div>

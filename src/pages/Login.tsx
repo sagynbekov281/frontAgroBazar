@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Sprout } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -10,10 +10,12 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as { from?: string } | null)?.from || '/';
 
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setError(''); setLoading(true);
-    try { await login(email, password); navigate('/'); }
+    try { await login(email, password); navigate(from, { replace: true }); }
     catch (err: any) { setError(err.message); }
     finally { setLoading(false); }
   }
@@ -32,9 +34,9 @@ export default function Login() {
           <div><label className="label">Сырсөз</label><input type="password" required className="input" value={password} onChange={e => setPassword(e.target.value)} /></div>
           <button disabled={loading} className="btn btn-primary w-full py-3">{loading ? 'Кирилүүдө...' : 'Кирүү'}</button>
         </form>
- 
+
       </div>
-      <p className="text-center text-sm text-muted mt-5">Аккаунт жокпу? <Link to="/register" className="text-primary-600 font-semibold hover:underline">Катталуу</Link></p>
+      <p className="text-center text-sm text-muted mt-5">Аккаунт жокпу? <Link to="/register" state={{ from }} className="text-primary-600 font-semibold hover:underline">Катталуу</Link></p>
     </div>
   );
 }

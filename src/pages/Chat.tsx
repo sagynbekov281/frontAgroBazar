@@ -250,9 +250,9 @@ useEffect(() => {
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8 h-[calc(100vh-140px)] flex gap-4">
+    <div className="max-w-5xl mx-auto px-2 py-3 sm:px-4 sm:py-8 h-[calc(100vh-90px)] sm:h-[calc(100vh-140px)] flex flex-col md:flex-row gap-2 sm:gap-4">
       <div className={`${roomId ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-72 shrink-0 card overflow-hidden`}>
-        <div className="p-4 border-b border-border font-semibold flex items-center justify-between">
+        <div className="p-3 sm:p-4 border-b border-border font-semibold flex items-center justify-between text-sm sm:text-base">
           <span>Билдирүүлөр</span>
           <button onClick={() => setShowNewGroup(true)} className="p-1.5 rounded-lg hover:bg-surface text-primary-600" title="Жаңы топ">
             <Plus size={18} />
@@ -260,10 +260,10 @@ useEffect(() => {
         </div>
         <div className="overflow-y-auto flex-1">
           {rooms.length === 0 ? (
-            <div className="p-6 text-center text-muted text-sm">Чат жок</div>
+            <div className="p-4 sm:p-6 text-center text-muted text-sm">Чат жок</div>
           ) : rooms.map(r => (
             <Link key={r.id} to={`/chat/${r.id}`}
-              className={`flex items-center gap-3 px-4 py-3 hover:bg-surface border-b border-border transition ${r.id === roomId ? 'bg-primary-50' : ''}`}>
+              className={`flex items-center gap-2 sm:gap-3 px-3 py-2.5 sm:px-4 sm:py-3 hover:bg-surface border-b border-border transition ${r.id === roomId ? 'bg-primary-50' : ''}`}>
               <div className="relative shrink-0">
                 <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center font-bold text-primary-700">
                   {r.isGroup ? <Users size={18} /> : roomInitial(r)}
@@ -272,7 +272,7 @@ useEffect(() => {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-sm truncate">{roomLabel(r)}</div>
-                <div className="text-xs text-muted truncate">{r.lastMessage || '...'}</div>
+                <div className="text-[11px] sm:text-xs text-muted truncate">{r.lastMessage || '...'}</div>
               </div>
               {r.unread > 0 && <span className="w-5 h-5 rounded-full bg-primary-600 text-white text-[10px] font-bold flex items-center justify-center">{r.unread}</span>}
             </Link>
@@ -289,23 +289,23 @@ useEffect(() => {
           </div>
         ) : (
           <>
-            <div className="p-4 border-b border-border flex items-center gap-3">
-              <Link to="/chat" className="md:hidden p-2 rounded-lg hover:bg-surface"><ArrowLeft size={18} /></Link>
-              <div className="w-9 h-9 rounded-full bg-primary-100 flex items-center justify-center font-bold text-primary-700">
+            <div className="p-3 sm:p-4 border-b border-border flex items-center gap-2 sm:gap-3">
+              <Link to="/chat" className="md:hidden p-2 rounded-lg hover:bg-surface shrink-0"><ArrowLeft size={18} /></Link>
+              <div className="w-9 h-9 rounded-full bg-primary-100 flex items-center justify-center font-bold text-primary-700 shrink-0">
                 {activeRoom?.isGroup ? <Users size={16} /> : (activeRoom ? roomInitial(activeRoom) : '?')}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="font-semibold">{activeRoom ? roomLabel(activeRoom) : 'Колдонуучу'}</div>
+                <div className="font-semibold text-sm sm:text-base">{activeRoom ? roomLabel(activeRoom) : 'Колдонуучу'}</div>
                 {activeRoom?.isGroup ? (
-                  <div className="text-xs text-muted">{activeRoom.participants.length} мүчө</div>
+                  <div className="text-[11px] sm:text-xs text-muted">{activeRoom.participants.length} мүчө</div>
                 ) : (
-                  <div className="text-xs text-muted">
+                  <div className="text-[11px] sm:text-xs text-muted">
                     {otherParticipantId && onlineUsers.has(otherParticipantId)
                       ? <span className="text-green-600">онлайн</span>
                       : otherUser?.lastSeen ? `акыркы жолу ${formatLastSeen(otherUser.lastSeen)}` : ''}
                   </div>
                 )}
-                {typingText && <div className="text-xs text-primary-600">{typingText} жазып жатат...</div>}
+                {typingText && <div className="text-[11px] sm:text-xs text-primary-600">{typingText} жазып жатат...</div>}
               </div>
               {activeRoom?.isGroup && (
                 <button onClick={handleLeaveGroup} disabled={leaving}
@@ -317,9 +317,9 @@ useEffect(() => {
 
             {imgError && <div className="px-4 py-2 bg-red-50 text-red-600 text-xs">{imgError}</div>}
 
-            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-2 sm:space-y-3">
               {messages.length === 0 ? (
-                <div className="text-center text-muted text-sm py-10">Билдирүүлөр жок. Биринчи болуп жазыңыз!</div>
+                <div className="text-center text-muted text-sm py-8 sm:py-10">Билдирүүлөр жок. Биринчи болуп жазыңыз!</div>
               ) : messages.map(m => {
                 const isMe = m.senderId === user?.id;
                 const snippet = findReplySnippet(m.replyTo);
@@ -336,7 +336,7 @@ useEffect(() => {
                         <button onClick={() => setReplyingTo(m)} className="p-1 rounded hover:bg-surface text-muted" title="Жооп берүү"><Reply size={14} /></button>
                       </div>
                     )}
-                    <div className={`max-w-[70%] px-4 py-2.5 rounded-2xl text-sm ${isMe ? 'bg-primary-600 text-white rounded-br-sm' : 'bg-surface border border-border rounded-bl-sm'} ${m.deleted ? 'italic opacity-60' : ''}`}>
+                    <div className={`max-w-[85%] sm:max-w-[70%] px-3 py-2 sm:px-4 sm:py-2.5 rounded-2xl text-sm ${isMe ? 'bg-primary-600 text-white rounded-br-sm' : 'bg-surface border border-border rounded-bl-sm'} ${m.deleted ? 'italic opacity-60' : ''}`}>
                       {!isMe && activeRoom?.isGroup && !m.deleted && <div className="font-semibold text-xs mb-0.5 text-primary-600">{m.senderName}</div>}
                       {snippet && !m.deleted && (
                         <div className={`text-xs mb-1.5 px-2 py-1 rounded border-l-2 ${isMe ? 'border-white/40 bg-white/10' : 'border-primary-400 bg-black/5'}`}>
@@ -363,8 +363,8 @@ useEffect(() => {
             </div>
 
             {replyingTo && (
-              <div className="px-3 pt-2 flex items-center gap-2 border-t border-border">
-                <div className="flex-1 min-w-0 bg-surface rounded-lg px-3 py-1.5 border-l-2 border-primary-500">
+              <div className="px-2 sm:px-3 pt-2 flex items-center gap-2 border-t border-border">
+                <div className="flex-1 min-w-0 bg-surface rounded-lg px-2 sm:px-3 py-1.5 border-l-2 border-primary-500">
                   <div className="text-xs font-semibold text-primary-600">{replyingTo.senderName}</div>
                   <div className="text-xs text-muted truncate">{replyingTo.deleted ? 'Билдирүү өчүрүлгөн' : (replyingTo.type === 'image' ? '📷 Сүрөт' : replyingTo.text)}</div>
                 </div>
@@ -372,14 +372,16 @@ useEffect(() => {
               </div>
             )}
 
-            <form onSubmit={handleSend} className="p-3 border-t border-border flex gap-2 items-center">
+            <form onSubmit={handleSend} className="p-2 sm:p-3 border-t border-border flex flex-col gap-2 sm:flex-row sm:items-center">
               <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileSelect} className="hidden" />
-              <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2.5 rounded-lg hover:bg-surface text-muted shrink-0" title="Сүрөт жөнөтүү">
-                <ImageIcon size={19} />
-              </button>
-              <input value={text} onChange={e => handleTextChange(e.target.value)} placeholder="Билдирүү жазыңыз..."
-                className="input flex-1 text-sm" />
-              <button disabled={sending || !text.trim()} className="btn btn-primary px-4 py-2.5">
+              <div className="flex items-center gap-2 sm:gap-2">
+                <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2.5 rounded-lg hover:bg-surface text-muted shrink-0" title="Сүрөт жөнөтүү">
+                  <ImageIcon size={19} />
+                </button>
+                <input value={text} onChange={e => handleTextChange(e.target.value)} placeholder="Билдирүү жазыңыз..."
+                  className="input flex-1 text-sm min-w-0" />
+              </div>
+              <button disabled={sending || !text.trim()} className="btn btn-primary px-4 py-2.5 w-full sm:w-auto">
                 <Send size={17} />
               </button>
             </form>
@@ -428,8 +430,8 @@ function NewGroupModal({ onClose, onCreated }: { onClose: () => void; onCreated:
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md p-5">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-3 sm:p-4">
+      <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-4 sm:p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="font-semibold text-lg">Жаңы топ</div>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface"><X size={18} /></button>

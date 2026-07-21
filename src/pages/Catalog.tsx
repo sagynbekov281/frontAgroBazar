@@ -39,43 +39,45 @@ export default function Catalog() {
   }, [params.toString()]);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      <div className="flex flex-col md:flex-row gap-2 mb-6">
+    <div className="max-w-7xl mx-auto px-3 sm:px-4 py-6 sm:py-8">
+      <div className="flex flex-col sm:flex-row gap-2 mb-5 sm:mb-6">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
           <input value={search} onChange={e => setSearch(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') setFilters({ category: filters.category }) }}
             placeholder="Товар, фермер, аймак..." className="input pl-10 text-sm" />
         </div>
-        <button onClick={() => { const p: Record<string, string> = {}; Object.entries(filters).forEach(([k, v]) => { if (v) p[k] = v; }); if (search) p.search = search; setParams(p); }}
-          className="btn btn-primary px-5">Издөө</button>
-        <button onClick={() => setShowFilters(!showFilters)} className="btn btn-outline md:hidden gap-1.5">
-          <SlidersHorizontal size={16} /> Фильтр
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => { const p: Record<string, string> = {}; Object.entries(filters).forEach(([k, v]) => { if (v) p[k] = v; }); if (search) p.search = search; setParams(p); }}
+            className="btn btn-primary px-5 flex-1 sm:flex-none">Издөө</button>
+          <button onClick={() => setShowFilters(!showFilters)} className="btn btn-outline md:hidden gap-1.5 shrink-0">
+            <SlidersHorizontal size={16} /> <span className="hidden xs:inline">Фильтр</span>
+          </button>
+        </div>
       </div>
 
-      <div className="grid md:grid-cols-[220px_1fr] gap-6">
+      <div className="grid md:grid-cols-[220px_1fr] gap-4 md:gap-6">
         <div className={`${showFilters ? 'block' : 'hidden'} md:block`}>
           <SearchFilters filters={filters} onChange={setFilters} />
         </div>
 
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-sm text-muted">{loading ? 'Жүктөлүүдө...' : `${listings.length} жарыя табылды`}</span>
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <span className="text-xs sm:text-sm text-muted">{loading ? 'Жүктөлүүдө...' : `${listings.length} жарыя табылды`}</span>
           </div>
 
           {loading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
               {[...Array(6)].map((_, i) => <div key={i} className="card aspect-[3/4] animate-pulse bg-slate-100" />)}
             </div>
           ) : listings.length === 0 ? (
-            <div className="text-center py-20 text-muted">
-              <div className="text-5xl mb-4">🔍</div>
-              <div className="font-semibold">Жарыялар табылган жок</div>
-              <div className="text-sm mt-1">Башка параметрлер менен издеп көрүңүз</div>
+            <div className="text-center py-16 sm:py-20 text-muted px-4">
+              <div className="text-4xl sm:text-5xl mb-4">🔍</div>
+              <div className="font-semibold text-sm sm:text-base">Жарыялар табылган жок</div>
+              <div className="text-xs sm:text-sm mt-1">Башка параметрлер менен издеп көрүңүз</div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
               {listings.map(l => <ListingCard key={l.id} l={l} />)}
             </div>
           )}

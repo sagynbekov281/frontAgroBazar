@@ -3,11 +3,11 @@ import { Sprout, Phone, Mail, MapPin } from 'lucide-react';
 
 export default function Footer() {
   return (
-    <footer className="bg-slate-900 text-slate-300 mt-20">
-      <div className="max-w-7xl mx-auto px-4 py-14 grid grid-cols-2 md:grid-cols-4 gap-8">
+    <footer className="bg-slate-900 text-slate-300 mt-12 sm:mt-20">
+      <div className="max-w-7xl mx-auto px-4 py-10 sm:py-14 grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-8 sm:gap-8">
         <div className="col-span-2 md:col-span-1">
           <div className="flex items-center gap-2 mb-3">
-            <div className="w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center"><Sprout size={16} className="text-white" /></div>
+            <div className="w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center shrink-0"><Sprout size={16} className="text-white" /></div>
             <span className="font-display text-lg text-white">AgroBazar</span>
           </div>
           <p className="text-sm text-slate-400 leading-relaxed mb-4">Кыргызстандын айыл чарба маркетплейси. Фермерлерди, сатып алуучуларды жана транспортту бириктирет.</p>
@@ -31,16 +31,16 @@ export default function Footer() {
             ))}
           </ul>
         </div>
-        <div>
+        <div className="col-span-2 md:col-span-1">
           <h4 className="font-semibold text-white mb-3">Байланыш</h4>
           <ul className="space-y-2.5 text-sm text-slate-400">
-            <li className="flex items-center gap-2"><MapPin size={14} /> Бишкек, Кыргызстан</li>
-            <li className="flex items-center gap-2"><Phone size={14} /> +996 700 000 000</li>
-            <li className="flex items-center gap-2"><Mail size={14} /> info@agrobazar.kg</li>
+            <li className="flex items-center gap-2"><MapPin size={14} className="shrink-0" /> Бишкек, Кыргызстан</li>
+            <li className="flex items-center gap-2"><Phone size={14} className="shrink-0" /> +996 700 000 000</li>
+            <li className="flex items-center gap-2 break-all"><Mail size={14} className="shrink-0" /> info@agrobazar.kg</li>
           </ul>
         </div>
       </div>
-      <div className="border-t border-slate-800 text-center text-xs text-slate-500 py-4">
+      <div className="border-t border-slate-800 text-center text-xs text-slate-500 py-4 px-4">
         © {new Date().getFullYear()} AgroBazar.kg — Бардык укуктар корголгон
       </div>
     </footer>

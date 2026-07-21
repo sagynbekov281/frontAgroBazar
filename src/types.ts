@@ -130,7 +130,7 @@ export interface ChatMessage {
   readBy?: string[];
   replyTo?: string;
   deleted?: boolean;
-  type?: 'text' | 'image';
+  type?: 'text' | 'image' | 'system';
   fileUrl?: string;
 }
 

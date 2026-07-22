@@ -797,7 +797,6 @@ function GroupInfoModal({ room, roomId, onClose, onUpdated, onLeft, onOpenProfil
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const isAdmin = room.ownerId === user?.id || (room.admins || []).includes(user?.id || '');
-  const isOwner = room.ownerId === user?.id;
 
   useEffect(() => {
     setLoadingMembers(true);

@@ -1,12 +1,12 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { ChatRoom, ChatMessage, User } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
-import { Send, ArrowLeft, Users, Plus, X, Reply, Trash2, Image as ImageIcon, LogOut, Phone, UserPlus, Info, Smile, Pencil, Shield, ShieldOff, MoreVertical, MessageCircle, UserMinus } from 'lucide-react';
-import EmojiPicker, { Theme } from 'emoji-picker-react';
-import type { EmojiClickData } from 'emoji-picker-react';
+import { Send, ArrowLeft, Users, Plus, X, Reply, Trash2, Image as ImageIcon, LogOut, Phone, UserPlus, Info, Smile, MoreVertical, ShieldCheck, UserMinus, Pencil, Camera, Star, BadgeCheck, MessageCircle } from 'lucide-react';
+import EmojiPicker, { Theme, type EmojiClickData } from 'emoji-picker-react';
+
 
 const MAX_IMAGE_BYTES = 400_000;
 const WA_GREEN = '#008069';
@@ -47,13 +47,45 @@ function compressImage(file: File): Promise<string> {
   });
 }
 
+// аватарка группы может быть чуть крупнее — свой лимит и сжатие под квадрат
+function compressAvatarImage(file: File, maxBytes = 500_000): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('read_error'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('img_error'));
+      img.onload = () => {
+        const size = 500;
+        const canvas = document.createElement('canvas');
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext('2d')!;
+        const side = Math.min(img.width, img.height);
+        const sx = (img.width - side) / 2;
+        const sy = (img.height - side) / 2;
+        ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+        let quality = 0.85;
+        let dataUrl = canvas.toDataURL('image/jpeg', quality);
+        while (dataUrl.length > maxBytes && quality > 0.3) {
+          quality -= 0.1;
+          dataUrl = canvas.toDataURL('image/jpeg', quality);
+        }
+        if (dataUrl.length > maxBytes) { reject(new Error('too_big')); return; }
+        resolve(dataUrl);
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 function formatLastSeen(iso?: string) {
   if (!iso) return '';
   const d = new Date(iso);
   const now = new Date();
   const sameDay = d.toDateString() === now.toDateString();
   const time = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-  return sameDay ? `бүгүн ${time}` : `${d.toLocaleDateString('ru-RU')} ${time}`;
+  return sameDay ? `сегодня в ${time}` : `${d.toLocaleDateString('ru-RU')} в ${time}`;
 }
 
 function dateLabel(iso: string) {
@@ -61,8 +93,8 @@ function dateLabel(iso: string) {
   const now = new Date();
   const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const diffDays = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
-  if (diffDays === 0) return 'Бүгүн';
-  if (diffDays === 1) return 'Кечээ';
+  if (diffDays === 0) return 'Сегодня';
+  if (diffDays === 1) return 'Вчера';
   return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
 }
 
@@ -72,6 +104,7 @@ export default function Chat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [showNewChat, setShowNewChat] = useState(false);
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
@@ -79,7 +112,10 @@ export default function Chat() {
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   const [otherUser, setOtherUser] = useState<User | null>(null);
   const [imgError, setImgError] = useState('');
-  const [viewingImage, setViewingImage] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<ChatMessage | null>(null);
+  const [openRoomMenu, setOpenRoomMenu] = useState<string | null>(null);
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
+  const [nicknameRoomId, setNicknameRoomId] = useState<string | null>(null);
   const { user } = useAuth();
   const { socket, onlineUsers } = useSocket();
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -88,9 +124,6 @@ export default function Chat() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const readSentRef = useRef<string | null>(null);
   const emojiWrapRef = useRef<HTMLDivElement>(null);
-  // кэш сообщений по комнатам — чтобы при переключении чата сразу показывать
-  // то, что уже известно, без пустого экрана / мигания
-  const messagesCacheRef = useRef<Record<string, ChatMessage[]>>({});
   const navigate = useNavigate();
 
   function loadRooms() {
@@ -101,28 +134,14 @@ export default function Chat() {
 
   useEffect(() => {
     if (!roomId) { setMessages([]); setReplyingTo(null); setShowGroupInfo(false); return; }
-
-    setReplyingTo(null);
-    setShowGroupInfo(false);
-
-    // мгновенно показать то, что уже знаем об этой комнате — без пустого экрана
-    setMessages(messagesCacheRef.current[roomId] || []);
-
-    api.getMessages(roomId).then(d => {
-      const msgs = d.messages || [];
-      messagesCacheRef.current[roomId] = msgs;
-      setMessages(msgs);
-    }).catch(() => {});
-
+    api.getMessages(roomId).then(d => setMessages(d.messages || [])).catch(() => {});
     socket?.emit('room:join', roomId);
   }, [roomId, socket]);
 
-  // useLayoutEffect вместо useEffect — скролл выставляется ДО того, как браузер
-  // отрисует кадр, поэтому визуального "скачка" не видно
-  useLayoutEffect(() => {
+  useEffect(() => {
     const el = messagesContainerRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [messages, roomId]);
+  }, [messages]);
 
   useEffect(() => {
     const room = rooms.find(r => r.id === roomId);
@@ -141,26 +160,11 @@ export default function Chat() {
     }
   }, [messages, roomId, socket, user?.id]);
 
-  // helper: обновляет и state, и кэш комнаты одновременно
-  function updateMessages(updater: (prev: ChatMessage[]) => ChatMessage[]) {
-    setMessages(prev => {
-      const next = updater(prev);
-      if (roomId) messagesCacheRef.current[roomId] = next;
-      return next;
-    });
-  }
-
   useEffect(() => {
     if (!socket) return;
 
     function onNewMessage(msg: ChatMessage) {
-      if (msg.roomId === roomId) {
-        updateMessages(prev => [...prev, msg]);
-      } else {
-        // сообщение пришло в другую (не открытую) комнату — обновим её кэш тоже
-        const cached = messagesCacheRef.current[msg.roomId];
-        if (cached) messagesCacheRef.current[msg.roomId] = [...cached, msg];
-      }
+      if (msg.roomId === roomId) setMessages(prev => [...prev, msg]);
       loadRooms();
     }
     function onTyping({ roomId: rId, userId, userName, isTyping }: any) {
@@ -173,21 +177,29 @@ export default function Chat() {
     }
     function onRead({ roomId: rId, userId }: any) {
       if (rId !== roomId) return;
-      updateMessages(prev => prev.map(m => m.senderId === user?.id
+      setMessages(prev => prev.map(m => m.senderId === user?.id
         ? { ...m, readBy: Array.from(new Set([...(m.readBy || []), userId])) }
         : m));
     }
     function onDeleted({ roomId: rId, messageId }: any) {
       if (rId !== roomId) return;
-      updateMessages(prev => prev.filter(m => m.id !== messageId));
+      setMessages(prev => prev.filter(m => m.id !== messageId));
     }
     function onError({ message }: any) { setImgError(message); setTimeout(() => setImgError(''), 4000); }
     function onGroupLeft({ roomId: rId }: any) {
       if (rId === roomId) return;
       loadRooms();
     }
-    function onGroupUpdated({ room }: { room: ChatRoom }) {
-      setRooms(prev => prev.map(r => r.id === room.id ? { ...r, ...room } : r));
+    function onMemberRemoved({ roomId: rId, userId }: any) {
+      loadRooms();
+      if (userId === user?.id && rId === roomId) { navigate('/chat'); }
+    }
+    function onGroupUpdated({ room }: any) {
+      loadRooms();
+      if (room?.id === roomId) {
+        // подтягиваем свежее имя/аву в шапке без ожидания перезагрузки списка
+        setRooms(prev => prev.map(r => r.id === room.id ? { ...r, ...room } : r));
+      }
     }
 
     socket.on('message:new', onNewMessage);
@@ -196,6 +208,7 @@ export default function Chat() {
     socket.on('message:deleted', onDeleted);
     socket.on('message:error', onError);
     socket.on('group:left', onGroupLeft);
+    socket.on('group:member_removed', onMemberRemoved);
     socket.on('group:updated', onGroupUpdated);
     return () => {
       socket.off('message:new', onNewMessage);
@@ -204,20 +217,20 @@ export default function Chat() {
       socket.off('message:deleted', onDeleted);
       socket.off('message:error', onError);
       socket.off('group:left', onGroupLeft);
+      socket.off('group:member_removed', onMemberRemoved);
       socket.off('group:updated', onGroupUpdated);
     };
   }, [socket, roomId, user?.id]);
 
   useEffect(() => {
-    if (!showEmoji) return;
+    if (!showEmoji && !openRoomMenu) return;
     function handleClickOutside(e: MouseEvent) {
-      if (emojiWrapRef.current && !emojiWrapRef.current.contains(e.target as Node)) {
-        setShowEmoji(false);
-      }
+      if (emojiWrapRef.current && !emojiWrapRef.current.contains(e.target as Node)) setShowEmoji(false);
+      if (!(e.target as HTMLElement).closest('[data-room-menu]')) setOpenRoomMenu(null);
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showEmoji]);
+  }, [showEmoji, openRoomMenu]);
 
   function handleTextChange(v: string) {
     setText(v);
@@ -248,7 +261,6 @@ export default function Chat() {
       } else {
         await api.sendMessage(roomId, value, replyId);
         const d = await api.getMessages(roomId);
-        messagesCacheRef.current[roomId] = d.messages || [];
         setMessages(d.messages || []);
       }
     } catch (e) { console.error(e); }
@@ -259,30 +271,48 @@ export default function Chat() {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file || !roomId) return;
-    if (!file.type.startsWith('image/')) { setImgError('Сүрөт гана жөнөтсө болот'); setTimeout(() => setImgError(''), 4000); return; }
+    if (!file.type.startsWith('image/')) { setImgError('Можно отправлять только изображения'); setTimeout(() => setImgError(''), 4000); return; }
     try {
       const dataUrl = await compressImage(file);
       if (socket) {
         socket.emit('message:send', { roomId, type: 'image', fileUrl: dataUrl });
       }
     } catch {
-      setImgError('Сүрөт өтө чоң же ачылбай жатат. Башка сүрөт тандаңыз.');
+      setImgError('Изображение слишком большое или не открывается. Выберите другое.');
       setTimeout(() => setImgError(''), 4000);
     }
   }
 
-  async function handleDelete(msg: ChatMessage) {
-    if (!roomId) return;
-    if (socket) socket.emit('message:delete', { roomId, messageId: msg.id });
-    else await api.deleteMessage(roomId, msg.id).catch(() => {});
+  async function confirmDeleteMessage(mode: 'me' | 'everyone') {
+    if (!confirmDelete || !roomId) return;
+    const msg = confirmDelete;
+    setConfirmDelete(null);
+    if (socket) {
+      socket.emit('message:delete', { roomId, messageId: msg.id, mode });
+      if (mode === 'me') setMessages(prev => prev.filter(m => m.id !== msg.id));
+    } else {
+      await api.deleteMessage(roomId, msg.id, mode).catch(() => {});
+      setMessages(prev => prev.filter(m => m.id !== msg.id));
+    }
+  }
+
+  async function handleDeleteChat(rId: string) {
+    if (!confirm('Удалить этот чат у себя? У собеседника сообщения останутся.')) return;
+    try {
+      await api.deleteChat(rId);
+      loadRooms();
+      if (roomId === rId) navigate('/chat');
+    } catch (e) { console.error(e); }
+    setOpenRoomMenu(null);
   }
 
   const activeRoom = rooms.find(r => r.id === roomId);
 
   function roomLabel(r: ChatRoom) {
     if (r.isGroup) return r.name || 'Топ';
+    if (r.nickname) return r.nickname;
     const other = r.participants.find(p => p.id !== user?.id);
-    return other?.name || 'Колдонуучу';
+    return other?.name || 'Пользователь';
   }
   function roomInitial(r: ChatRoom) {
     return roomLabel(r)[0] || '?';
@@ -297,12 +327,20 @@ export default function Chat() {
   const otherParticipantId = activeRoom && !activeRoom.isGroup ? activeRoom.participants.find(p => p.id !== user?.id)?.id : undefined;
 
   function messageStatus(m: ChatMessage) {
-    if (m.senderId !== user?.id || activeRoom?.isGroup) return null;
-    const readByOther = otherParticipantId ? (m.readBy || []).includes(otherParticipantId) : false;
+    if (m.senderId !== user?.id) return null;
+    const readBy = m.readBy || [];
+    let isRead: boolean;
+    if (activeRoom?.isGroup) {
+      const others = activeRoom.participants.filter(p => p.id !== user?.id);
+      isRead = others.length > 0 && others.every(p => readBy.includes(p.id));
+    } else {
+      isRead = otherParticipantId ? readBy.includes(otherParticipantId) : false;
+    }
     return (
-      <span className={`inline-block font-bold ${readByOther ? 'text-sky-500' : 'text-slate-400'}`} style={{ letterSpacing: '-2px' }}>
-        {readByOther ? '✓✓' : '✓'}
-      </span>
+      <svg width="16" height="11" viewBox="0 0 16 11" className="inline-block align-middle">
+        <path d="M1 5.5L4.5 9L11 1.5" stroke={isRead ? '#53bdeb' : '#8696a0'} strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M5.5 5.5L9 9L15.5 1.5" stroke={isRead ? '#53bdeb' : '#8696a0'} strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
     );
   }
 
@@ -310,34 +348,16 @@ export default function Chat() {
     if (!id) return null;
     const m = messages.find(x => x.id === id);
     if (!m) return null;
-    return { senderName: m.senderName, text: m.deleted ? 'Билдирүү өчүрүлгөн' : (m.type === 'image' ? '📷 Сүрөт' : m.text) };
+    return { senderName: m.senderName, text: m.type === 'image' ? '📷 Фото' : m.text };
   }
 
-  // переход в личку с участником группы: если такая комната уже есть — открыть её,
-  // иначе попросить бэкенд создать/найти direct-комнату и перейти туда
-  async function handleOpenDirectChat(otherUserId: string) {
-    if (otherUserId === user?.id) return;
-    const existing = rooms.find(r => !r.isGroup && r.participants.some(p => p.id === otherUserId));
-    if (existing) {
-      setShowGroupInfo(false);
-      navigate(`/chat/${existing.id}`);
-      return;
-    }
-    try {
-      const d = await api.startDirectChat(otherUserId);
-      loadRooms();
-      setShowGroupInfo(false);
-      navigate(`/chat/${d.room.id}`);
-    } catch (e) { console.error(e); }
-  }
-
-  type Item = { kind: 'date'; label: string } | { kind: 'system'; m: ChatMessage } | { kind: 'msg'; m: ChatMessage };
+  type Item = { kind: 'date'; label: string } | { kind: 'msg'; m: ChatMessage };
   const items: Item[] = [];
   let lastDate = '';
   for (const m of messages) {
     const label = dateLabel(m.createdAt);
     if (label !== lastDate) { items.push({ kind: 'date', label }); lastDate = label; }
-    items.push(m.type === 'system' ? { kind: 'system', m } : { kind: 'msg', m });
+    items.push({ kind: 'msg', m });
   }
 
   return (
@@ -345,33 +365,49 @@ export default function Chat() {
       {/* rooms list */}
       <div className={`${roomId ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-80 shrink-0 rounded-2xl overflow-hidden shadow-sm border border-border`}>
         <div className="p-3 sm:p-4 flex items-center justify-between text-white" style={{ background: WA_GREEN }}>
-          <span className="font-semibold text-sm sm:text-base">Билдирүүлөр</span>
-          <button onClick={() => setShowNewGroup(true)} className="p-1.5 rounded-full hover:bg-white/15" title="Жаңы топ">
+          <span className="font-semibold text-sm sm:text-base">Сообщения</span>
+          <button onClick={() => setShowNewChat(true)} className="p-1.5 rounded-full hover:bg-white/15" title="Новый чат">
             <Plus size={19} />
           </button>
         </div>
         <div className="overflow-y-auto flex-1 bg-white">
           {rooms.length === 0 ? (
-            <div className="p-6 text-center text-muted text-sm">Чат жок</div>
+            <div className="p-6 text-center text-muted text-sm">Нет чатов</div>
           ) : rooms.map(r => (
-            <Link key={r.id} to={`/chat/${r.id}`}
-              className={`flex items-center gap-3 px-3 py-2.5 sm:px-4 sm:py-3 hover:bg-[#f5f6f6] border-b border-slate-100 transition ${r.id === roomId ? 'bg-[#f0f2f0]' : ''}`}>
-              <div className="relative shrink-0">
-                {r.isGroup && r.avatar ? (
-                  <img src={r.avatar} alt="" className="w-12 h-12 rounded-full object-cover" />
-                ) : (
-                  <div className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-white" style={{ background: `linear-gradient(135deg, ${WA_GREEN}, ${WA_GREEN_DARK})` }}>
-                    {r.isGroup ? <Users size={20} /> : roomInitial(r)}
+            <div key={r.id} className={`relative flex items-center gap-3 px-3 py-2.5 sm:px-4 sm:py-3 hover:bg-[#f5f6f6] border-b border-slate-100 transition ${r.id === roomId ? 'bg-[#f0f2f0]' : ''}`}>
+              <Link to={`/chat/${r.id}`} className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="relative shrink-0">
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-white overflow-hidden" style={{ background: `linear-gradient(135deg, ${WA_GREEN}, ${WA_GREEN_DARK})` }}>
+                    {r.isGroup
+                      ? (r.avatar ? <img src={r.avatar} alt="" className="w-full h-full object-cover" /> : <Users size={20} />)
+                      : roomInitial(r)}
+                  </div>
+                  {isOtherOnline(r) && <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-sm truncate text-slate-800">{roomLabel(r)}</div>
+                  <div className="text-[12px] text-muted truncate">{r.lastMessage || 'Нет сообщений'}</div>
+                </div>
+              </Link>
+              {r.unread > 0 && <span className="w-5 h-5 rounded-full text-white text-[10px] font-bold flex items-center justify-center shrink-0" style={{ background: WA_GREEN }}>{r.unread}</span>}
+              <div className="relative shrink-0" data-room-menu>
+                <button onClick={() => setOpenRoomMenu(v => v === r.id ? null : r.id)} className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400">
+                  <MoreVertical size={16} />
+                </button>
+                {openRoomMenu === r.id && (
+                  <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-lg border border-border z-20 py-1 w-44">
+                    {!r.isGroup && (
+                      <button onClick={() => { setNicknameRoomId(r.id); setOpenRoomMenu(null); }} className="w-full text-left px-3 py-2 text-sm text-slate-600 hover:bg-surface flex items-center gap-2">
+                        <Pencil size={14} /> Задать никнейм
+                      </button>
+                    )}
+                    <button onClick={() => handleDeleteChat(r.id)} className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-red-50 flex items-center gap-2">
+                      <Trash2 size={14} /> Удалить чат
+                    </button>
                   </div>
                 )}
-                {isOtherOnline(r) && <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full" />}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-semibold text-sm truncate text-slate-800">{roomLabel(r)}</div>
-                <div className="text-[12px] text-muted truncate">{r.lastMessage || 'Билдирүү жок'}</div>
-              </div>
-              {r.unread > 0 && <span className="w-5 h-5 rounded-full text-white text-[10px] font-bold flex items-center justify-center shrink-0" style={{ background: WA_GREEN }}>{r.unread}</span>}
-            </Link>
+            </div>
           ))}
         </div>
       </div>
@@ -382,42 +418,38 @@ export default function Chat() {
           <div className="flex-1 flex items-center justify-center text-muted flex-col gap-3 bg-[#f7f7f5]">
             <div className="text-6xl">💬</div>
             <div className="font-semibold text-lg text-slate-600">AgroBazar чат</div>
-            <div className="text-sm">Сол тараптан колдонуучуну тандаңыз</div>
+            <div className="text-sm">Выберите пользователя слева</div>
           </div>
         ) : (
           <>
             <div className="flex items-center gap-1 sm:gap-2 text-white" style={{ background: WA_GREEN }}>
               <Link to="/chat" className="md:hidden p-2 ml-1 rounded-full hover:bg-white/15 shrink-0"><ArrowLeft size={18} /></Link>
               <button
-                onClick={() => { if (activeRoom?.isGroup) setShowGroupInfo(true); }}
-                className={`flex items-center gap-2 sm:gap-3 flex-1 min-w-0 py-3 sm:py-3.5 px-2 sm:px-3 text-left ${activeRoom?.isGroup ? 'hover:bg-white/10 cursor-pointer' : 'cursor-default'} transition`}
+                onClick={() => {
+                  if (activeRoom?.isGroup) setShowGroupInfo(true);
+                  else if (otherParticipantId) setProfileUserId(otherParticipantId);
+                }}
+                className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 py-3 sm:py-3.5 px-2 sm:px-3 text-left hover:bg-white/10 cursor-pointer transition"
               >
-                {activeRoom?.isGroup && activeRoom.avatar ? (
-                  <img
-                    src={activeRoom.avatar}
-                    alt=""
-                    className="w-10 h-10 rounded-full object-cover shrink-0 cursor-pointer"
-                    onClick={e => { e.stopPropagation(); setViewingImage(activeRoom.avatar!); }}
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold shrink-0 text-white bg-white/20">
-                    {activeRoom?.isGroup ? <Users size={17} /> : (activeRoom ? roomInitial(activeRoom) : '?')}
-                  </div>
-                )}
+                <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold shrink-0 text-white bg-white/20 overflow-hidden">
+                  {activeRoom?.isGroup
+                    ? (activeRoom.avatar ? <img src={activeRoom.avatar} alt="" className="w-full h-full object-cover" /> : <Users size={17} />)
+                    : (activeRoom ? roomInitial(activeRoom) : '?')}
+                </div>
                 <div className="min-w-0 flex-1">
-                  <div className="font-semibold text-sm sm:text-base leading-tight truncate">{activeRoom ? roomLabel(activeRoom) : 'Колдонуучу'}</div>
+                  <div className="font-semibold text-sm sm:text-base leading-tight truncate">{activeRoom ? roomLabel(activeRoom) : 'Пользователь'}</div>
                   {activeRoom?.isGroup ? (
-                    <div className="text-[11px] sm:text-xs text-white/75">{activeRoom.participants.length} мүчө</div>
+                    <div className="text-[11px] sm:text-xs text-white/75">{activeRoom.participants.length} участников</div>
                   ) : (
                     <div className="text-[11px] sm:text-xs text-white/75">
                       {otherParticipantId && onlineUsers.has(otherParticipantId)
-                        ? 'онлайн'
-                        : otherUser?.lastSeen ? `акыркы жолу ${formatLastSeen(otherUser.lastSeen)}` : ''}
+                        ? 'в сети'
+                        : otherUser?.lastSeen ? `был(а) в сети ${formatLastSeen(otherUser.lastSeen)}` : ''}
                     </div>
                   )}
-                  {typingText && <div className="text-[11px] sm:text-xs text-white font-medium">{typingText} жазып жатат...</div>}
+                  {typingText && <div className="text-[11px] sm:text-xs text-white font-medium">{typingText} печатает...</div>}
                 </div>
-                {activeRoom?.isGroup && <Info size={17} className="text-white/70 shrink-0" />}
+                <Info size={17} className="text-white/70 shrink-0" />
               </button>
             </div>
 
@@ -430,19 +462,11 @@ export default function Chat() {
                 background: WA_BG,
                 backgroundImage: 'radial-gradient(rgba(255,255,255,0.35) 1px, transparent 1px)',
                 backgroundSize: '18px 18px',
-                scrollBehavior: 'auto',
               }}
             >
               {items.length === 0 ? (
-                <div className="text-center text-slate-500 text-sm py-10 bg-white/80 rounded-xl mx-auto max-w-xs px-4 shadow-sm">Билдирүүлөр жок. Биринчи болуп жазыңыз!</div>
+                <div className="text-center text-slate-500 text-sm py-10 bg-white/80 rounded-xl mx-auto max-w-xs px-4 shadow-sm">Нет сообщений. Напишите первым!</div>
               ) : items.map((item, idx) => {
-                if (item.kind === 'system') {
-                  return (
-                    <div key={item.m.id} className="flex justify-center my-2">
-                      <span className="bg-black/10 text-slate-600 text-[11px] font-medium px-3 py-1.5 rounded-lg shadow-sm text-center max-w-[85%] sm:max-w-md">{item.m.text}</span>
-                    </div>
-                  );
-                }
                 if (item.kind === 'date') {
                   return (
                     <div key={`d-${idx}`} className="flex justify-center my-3">
@@ -451,45 +475,53 @@ export default function Chat() {
                   );
                 }
                 const m = item.m;
+                if (m.type === 'system') {
+                  return (
+                    <div key={m.id} className="flex justify-center my-2">
+                      <span className="bg-white/80 text-slate-500 text-[11px] px-3 py-1 rounded-lg shadow-sm text-center max-w-xs">{m.text}</span>
+                    </div>
+                  );
+                }
                 const isMe = m.senderId === user?.id;
                 const snippet = findReplySnippet(m.replyTo);
                 return (
                   <div key={m.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group`}>
-                    {isMe && !m.deleted && (
-                      <div className="opacity-0 group-hover:opacity-100 transition flex items-center gap-1 mr-1 self-center">
-                        <button onClick={() => setReplyingTo(m)} className="p-1 rounded hover:bg-white/70 text-slate-500" title="Жооп берүү"><Reply size={14} /></button>
-                        <button onClick={() => handleDelete(m)} className="p-1 rounded hover:bg-white/70 text-red-500" title="Өчүрүү"><Trash2 size={14} /></button>
-                      </div>
-                    )}
-                    {!isMe && !m.deleted && (
-                      <div className="opacity-0 group-hover:opacity-100 transition flex items-center mr-1 self-center">
-                        <button onClick={() => setReplyingTo(m)} className="p-1 rounded hover:bg-white/70 text-slate-500" title="Жооп берүү"><Reply size={14} /></button>
+                    {isMe && (
+                      <div className="opacity-0 group-hover:opacity-100 transition flex items-center gap-1 mr-1 self-center order-first">
+                        <button onClick={() => setReplyingTo(m)} className="p-1 rounded hover:bg-white/70 text-slate-500" title="Ответить"><Reply size={14} /></button>
+                        <button onClick={() => setConfirmDelete(m)} className="p-1 rounded hover:bg-white/70 text-red-500" title="Удалить"><Trash2 size={14} /></button>
                       </div>
                     )}
                     <div
-                      className={`max-w-[85%] sm:max-w-[65%] px-2.5 py-1.5 sm:px-3 sm:py-2 text-sm shadow-sm ${m.deleted ? 'italic opacity-60 bg-white' : ''}`}
-                      style={!m.deleted ? {
+                      className="max-w-[85%] sm:max-w-[65%] px-2.5 py-1.5 sm:px-3 sm:py-2 text-sm shadow-sm"
+                      style={{
                         background: isMe ? WA_BUBBLE_SENT : '#ffffff',
                         borderRadius: isMe ? '10px 10px 2px 10px' : '10px 10px 10px 2px',
-                      } : { borderRadius: isMe ? '10px 10px 2px 10px' : '10px 10px 10px 2px' }}
+                      }}
                     >
-                      {!isMe && activeRoom?.isGroup && !m.deleted && <div className="font-semibold text-xs mb-0.5" style={{ color: WA_GREEN }}>{m.senderName}</div>}
-                      {snippet && !m.deleted && (
+                      {!isMe && activeRoom?.isGroup && (
+                        <button
+                          onClick={() => setProfileUserId(m.senderId)}
+                          className="font-semibold text-xs mb-0.5 hover:underline"
+                          style={{ color: WA_GREEN }}
+                        >
+                          {m.senderName}
+                        </button>
+                      )}
+                      {snippet && (
                         <div className="text-xs mb-1.5 px-2 py-1 rounded bg-black/5 border-l-2" style={{ borderColor: WA_GREEN }}>
                           <div className="font-semibold" style={{ color: WA_GREEN }}>{snippet.senderName}</div>
                           <div className="truncate opacity-70 text-slate-600">{snippet.text}</div>
                         </div>
                       )}
-                      {m.deleted ? (
-                        <div className="flex items-center gap-1 text-slate-500">🚫 Билдирүү өчүрүлгөн</div>
-                      ) : m.type === 'image' && m.fileUrl ? (
+                      {m.type === 'image' && m.fileUrl ? (
                         <img src={m.fileUrl} alt="фото" className="rounded-lg max-w-full max-h-72 mb-1" />
                       ) : (
                         <div className="whitespace-pre-wrap break-words text-slate-800">{m.text}</div>
                       )}
                       <div className="text-[10px] mt-0.5 flex items-center gap-1 text-slate-500 justify-end">
                         {new Date(m.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
-                        {!m.deleted && messageStatus(m)}
+                        {messageStatus(m)}
                       </div>
                     </div>
                   </div>
@@ -502,7 +534,7 @@ export default function Chat() {
               <div className="px-2 sm:px-3 pt-2 flex items-center gap-2 border-t border-border bg-white">
                 <div className="flex-1 min-w-0 bg-surface rounded-lg px-2 sm:px-3 py-1.5 border-l-2" style={{ borderColor: WA_GREEN }}>
                   <div className="text-xs font-semibold" style={{ color: WA_GREEN }}>{replyingTo.senderName}</div>
-                  <div className="text-xs text-muted truncate">{replyingTo.deleted ? 'Билдирүү өчүрүлгөн' : (replyingTo.type === 'image' ? '📷 Сүрөт' : replyingTo.text)}</div>
+                  <div className="text-xs text-muted truncate">{replyingTo.type === 'image' ? '📷 Фото' : replyingTo.text}</div>
                 </div>
                 <button onClick={() => setReplyingTo(null)} className="p-1.5 rounded-lg hover:bg-surface"><X size={16} /></button>
               </div>
@@ -522,11 +554,11 @@ export default function Chat() {
                 )}
               </div>
 
-              <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2.5 rounded-full hover:bg-surface text-muted shrink-0" title="Сүрөт жөнөтүү">
+              <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2.5 rounded-full hover:bg-surface text-muted shrink-0" title="Отправить фото">
                 <ImageIcon size={19} />
               </button>
 
-              <input value={text} onChange={e => handleTextChange(e.target.value)} placeholder="Билдирүү жазыңыз..."
+              <input value={text} onChange={e => handleTextChange(e.target.value)} placeholder="Напишите сообщение..."
                 className="input flex-1 text-sm min-w-0 rounded-full" />
 
               <button disabled={sending || !text.trim()} className="btn p-2.5 sm:px-4 sm:py-2.5 text-white rounded-full shrink-0" style={{ background: sending || !text.trim() ? '#94a3b8' : WA_GREEN }}>
@@ -537,6 +569,14 @@ export default function Chat() {
         )}
       </div>
 
+      {showNewChat && (
+        <NewChatModal
+          onClose={() => setShowNewChat(false)}
+          onOpenNewGroup={() => { setShowNewChat(false); setShowNewGroup(true); }}
+          onChatStarted={(rId) => { setShowNewChat(false); loadRooms(); navigate(`/chat/${rId}`); }}
+        />
+      )}
+
       {showNewGroup && <NewGroupModal onClose={() => setShowNewGroup(false)} onCreated={loadRooms} />}
 
       {showGroupInfo && activeRoom && roomId && (
@@ -546,37 +586,197 @@ export default function Chat() {
           onClose={() => setShowGroupInfo(false)}
           onUpdated={loadRooms}
           onLeft={() => { setShowGroupInfo(false); navigate('/chat'); loadRooms(); }}
-          onViewAvatar={(url) => setViewingImage(url)}
-          onOpenDirectChat={handleOpenDirectChat}
+          onOpenProfile={(uid) => setProfileUserId(uid)}
         />
       )}
 
-      {viewingImage && (
-        <div
-          className="fixed inset-0 bg-black/85 flex items-center justify-center z-[60] p-4"
-          onClick={() => setViewingImage(null)}
-        >
-          <button
-            onClick={() => setViewingImage(null)}
-            className="absolute top-4 right-4 text-white p-2 rounded-full hover:bg-white/15"
-          >
-            <X size={24} />
-          </button>
-          <img
-            src={viewingImage}
-            alt=""
-            className="max-w-full max-h-full rounded-xl object-contain"
-            onClick={e => e.stopPropagation()}
-          />
+      {profileUserId && (
+        <ProfileModal userId={profileUserId} onClose={() => setProfileUserId(null)} />
+      )}
+
+      {nicknameRoomId && (
+        <NicknameModal
+          room={rooms.find(r => r.id === nicknameRoomId)!}
+          currentUserId={user?.id}
+          onClose={() => setNicknameRoomId(null)}
+          onSaved={loadRooms}
+        />
+      )}
+
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5">
+            <div className="font-semibold text-base mb-2">Удалить сообщение?</div>
+            <p className="text-sm text-muted mb-5">Это действие нельзя отменить.</p>
+            <div className="space-y-2">
+              {confirmDelete.senderId === user?.id && (
+                <button onClick={() => confirmDeleteMessage('everyone')} className="w-full btn bg-red-50 text-red-600 hover:bg-red-100 justify-center">
+                  Удалить у всех
+                </button>
+              )}
+              <button onClick={() => confirmDeleteMessage('me')} className="w-full btn btn-outline justify-center">
+                Удалить у себя
+              </button>
+              <button onClick={() => setConfirmDelete(null)} className="w-full btn justify-center text-muted">
+                Отмена
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-function GroupInfoModal({ room, roomId, onClose, onUpdated, onLeft, onViewAvatar, onOpenDirectChat }: {
-  room: ChatRoom; roomId: string; onClose: () => void; onUpdated: () => void; onLeft: () => void; onViewAvatar: (url: string) => void;
-  onOpenDirectChat: (userId: string) => void;
+/* ── Profile modal: view any user's public info (phone, rating, etc) ── */
+function ProfileModal({ userId, onClose }: { userId: string; onClose: () => void }) {
+  const [profile, setProfile] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const { user: me } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    setLoading(true);
+    api.getUser(userId).then(d => setProfile(d.user)).catch(() => {}).finally(() => setLoading(false));
+  }, [userId]);
+
+  async function handleMessage() {
+    if (!profile) return;
+    try {
+      const d = await api.startChat(profile.id);
+      onClose();
+      navigate(`/chat/${d.roomId}`);
+    } catch (e) { console.error(e); }
+  }
+
+  const isMe = me?.id === userId;
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[70] p-3 sm:p-4">
+      <div className="bg-white rounded-2xl w-full max-w-sm max-h-[85vh] overflow-y-auto">
+        <div className="flex flex-col items-center text-white p-6 sm:p-8 relative" style={{ background: `linear-gradient(160deg, ${WA_GREEN}, ${WA_GREEN_DARK})` }}>
+          <button onClick={onClose} className="absolute top-3 right-3 p-1.5 rounded-full hover:bg-white/15"><X size={18} /></button>
+          <div className="w-24 h-24 rounded-full bg-white/20 flex items-center justify-center mb-3 overflow-hidden font-bold text-3xl">
+            {profile?.avatar ? <img src={profile.avatar} alt="" className="w-full h-full object-cover" /> : (profile?.name?.[0] || '?')}
+          </div>
+          <div className="font-bold text-lg text-center px-6 flex items-center gap-1.5">
+            {profile?.name || (loading ? 'Загрузка...' : 'Пользователь')}
+            {profile?.verified && <BadgeCheck size={18} className="text-white/90" />}
+          </div>
+          {profile && (
+            <div className="flex items-center gap-1 mt-1 text-sm text-white/85">
+              <Star size={14} className="fill-current" /> {profile.rating?.toFixed(1) || '0.0'} · {profile.reviewCount || 0} пикир
+            </div>
+          )}
+        </div>
+
+        {!loading && profile && (
+          <div className="p-4 sm:p-5 space-y-3">
+            {profile.phone && (
+              <a href={`tel:${profile.phone}`} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-surface text-slate-700">
+                <Phone size={18} style={{ color: WA_GREEN }} />
+                <div>
+                  <div className="text-[11px] text-muted">Телефон</div>
+                  <div className="text-sm font-medium">{profile.phone}</div>
+                </div>
+              </a>
+            )}
+            {profile.email && (
+              <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-700">
+                <MessageCircle size={18} style={{ color: WA_GREEN }} />
+                <div>
+                  <div className="text-[11px] text-muted">Email</div>
+                  <div className="text-sm font-medium truncate">{profile.email}</div>
+                </div>
+              </div>
+            )}
+            {(profile.region || profile.district || profile.village) && (
+              <div className="px-3 py-2.5 rounded-xl text-slate-700">
+                <div className="text-[11px] text-muted">Жайгашкан жери</div>
+                <div className="text-sm font-medium">
+                  {[profile.region, profile.district, profile.village].filter(Boolean).join(', ')}
+                </div>
+              </div>
+            )}
+            {profile.companyName && (
+              <div className="px-3 py-2.5 rounded-xl text-slate-700">
+                <div className="text-[11px] text-muted">Компания</div>
+                <div className="text-sm font-medium">{profile.companyName}</div>
+              </div>
+            )}
+            {profile.role && (
+              <div className="px-3 py-2.5 rounded-xl text-slate-700">
+                <div className="text-[11px] text-muted">Роль</div>
+                <div className="text-sm font-medium capitalize">{profile.role}</div>
+              </div>
+            )}
+
+            {!isMe && (
+              <button onClick={handleMessage} className="w-full btn text-white rounded-full mt-2" style={{ background: WA_GREEN }}>
+                <MessageCircle size={16} className="mr-1.5" /> Написать сообщение
+              </button>
+            )}
+          </div>
+        )}
+        {loading && <div className="p-8 text-center text-muted text-sm">Загрузка...</div>}
+      </div>
+    </div>
+  );
+}
+
+/* ── Nickname modal: set a private nickname for a 1:1 chat ── */
+function NicknameModal({ room, currentUserId, onClose, onSaved }: {
+  room: ChatRoom; currentUserId?: string; onClose: () => void; onSaved: () => void;
+}) {
+  const [value, setValue] = useState(room.nickname || '');
+  const [saving, setSaving] = useState(false);
+  const other = room.participants.find(p => p.id !== currentUserId);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await api.setChatNickname(room.id, value.trim() || null);
+      onSaved();
+      onClose();
+    } catch (e) { console.error(e); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[70] p-3 sm:p-4">
+      <div className="bg-white rounded-2xl w-full max-w-sm p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="font-semibold text-base">Задать никнейм</div>
+          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-surface"><X size={18} /></button>
+        </div>
+        <p className="text-xs text-muted mb-3">
+          {other?.name || 'Колдонуучунун'} — задайте личный никнейм. Его увидите только вы.
+        </p>
+        <input
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          placeholder={other?.name || 'Никнейм'}
+          className="input w-full mb-4 rounded-full"
+          autoFocus
+        />
+        <div className="flex gap-2">
+          {room.nickname && (
+            <button onClick={() => { setValue(''); }} className="btn btn-outline flex-1 justify-center text-sm">
+              Очистить
+            </button>
+          )}
+          <button disabled={saving} onClick={handleSave} className="btn flex-1 text-white justify-center" style={{ background: WA_GREEN }}>
+            {saving ? 'Сохранение...' : 'Сохранить'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GroupInfoModal({ room, roomId, onClose, onUpdated, onLeft, onOpenProfile }: {
+  room: ChatRoom; roomId: string; onClose: () => void; onUpdated: () => void; onLeft: () => void;
+  onOpenProfile: (userId: string) => void;
 }) {
   const [members, setMembers] = useState<User[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
@@ -586,72 +786,18 @@ function GroupInfoModal({ room, roomId, onClose, onUpdated, onLeft, onViewAvatar
   const [searching, setSearching] = useState(false);
   const [adding, setAdding] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
-  const { user } = useAuth();
-
-  const isOwner = room.ownerId === user?.id;
-
+  const [openMemberMenu, setOpenMemberMenu] = useState<string | null>(null);
   const [editingName, setEditingName] = useState(false);
-  const [nameInput, setNameInput] = useState(room.name || '');
+  const [nameDraft, setNameDraft] = useState(room.name || '');
   const [savingName, setSavingName] = useState(false);
-  const [nameError, setNameError] = useState('');
-
-  const [avatarPreview, setAvatarPreview] = useState<string | undefined>(room.avatar);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [avatarError, setAvatarError] = useState('');
+  const { user } = useAuth();
+  const { socket } = useSocket();
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
-  // id участника, для которого сейчас открыто меню действий (написать/админ/удалить)
-  const [openMemberMenu, setOpenMemberMenu] = useState<string | null>(null);
-  const [memberActionError, setMemberActionError] = useState('');
-  const [busyMemberId, setBusyMemberId] = useState<string | null>(null);
-  const memberMenuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => { setNameInput(room.name || ''); setAvatarPreview(room.avatar); }, [room.name, room.avatar]);
-
-  useEffect(() => {
-    if (!openMemberMenu) return;
-    function handleClickOutside(e: MouseEvent) {
-      if (memberMenuRef.current && !memberMenuRef.current.contains(e.target as Node)) {
-        setOpenMemberMenu(null);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [openMemberMenu]);
-
-  async function handleSaveName() {
-    const value = nameInput.trim();
-    if (!value || value === room.name) { setEditingName(false); return; }
-    setSavingName(true); setNameError('');
-    try {
-      await api.updateGroup(roomId, { name: value });
-      onUpdated();
-      setEditingName(false);
-    } catch (e: any) {
-      setNameError(e.message || 'Ката кетти');
-    } finally {
-      setSavingName(false);
-    }
-  }
-
-  async function handleAvatarSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    if (!file.type.startsWith('image/')) { setAvatarError('Сүрөт гана тандаңыз'); setTimeout(() => setAvatarError(''), 4000); return; }
-    setUploadingAvatar(true); setAvatarError('');
-    try {
-      const dataUrl = await compressImage(file);
-      setAvatarPreview(dataUrl);
-      await api.updateGroup(roomId, { avatar: dataUrl });
-      onUpdated();
-    } catch {
-      setAvatarError('Сүрөт өтө чоң же ачылбай жатат. Башка сүрөт тандаңыз.');
-      setTimeout(() => setAvatarError(''), 4000);
-    } finally {
-      setUploadingAvatar(false);
-    }
-  }
+  const isAdmin = room.ownerId === user?.id || (room.admins || []).includes(user?.id || '');
+  const isOwner = room.ownerId === user?.id;
 
   useEffect(() => {
     setLoadingMembers(true);
@@ -659,6 +805,8 @@ function GroupInfoModal({ room, roomId, onClose, onUpdated, onLeft, onViewAvatar
       .then(list => setMembers(list.filter(Boolean) as User[]))
       .finally(() => setLoadingMembers(false));
   }, [room.participants.map(p => p.id).join(',')]);
+
+  useEffect(() => { setNameDraft(room.name || ''); }, [room.name]);
 
   useEffect(() => {
     if (query.trim().length < 2) { setResults([]); return; }
@@ -684,7 +832,7 @@ function GroupInfoModal({ room, roomId, onClose, onUpdated, onLeft, onViewAvatar
   }
 
   async function handleLeave() {
-    if (!confirm('Бул топтон чыгууну каалайсызбы?')) return;
+    if (!confirm('Покинуть эту группу?')) return;
     setLeaving(true);
     try {
       await api.leaveGroup(roomId);
@@ -693,38 +841,62 @@ function GroupInfoModal({ room, roomId, onClose, onUpdated, onLeft, onViewAvatar
     finally { setLeaving(false); }
   }
 
-  function showMemberActionError(msg: string) {
-    setMemberActionError(msg);
-    setTimeout(() => setMemberActionError(''), 4000);
+  async function handleRemoveMember(u: User) {
+    if (!confirm(`Убрать ${u.name} из группы?`)) return;
+    try {
+      if (socket) socket.emit('group:remove_member', { roomId, userId: u.id });
+      else await api.removeGroupMember(roomId, u.id);
+      setMembers(prev => prev.filter(m => m.id !== u.id));
+      onUpdated();
+    } catch (e) { console.error(e); }
+    setOpenMemberMenu(null);
   }
 
-  async function handleToggleAdmin(m: User) {
-    setOpenMemberMenu(null);
-    const makeAdmin = room.ownerId !== m.id;
-    setBusyMemberId(m.id);
+  async function handleToggleAdmin(u: User, makeAdmin: boolean) {
     try {
-      await api.setGroupAdmin(roomId, m.id, makeAdmin);
+      await api.setGroupAdmin(roomId, u.id, makeAdmin);
       onUpdated();
-    } catch (e: any) {
-      showMemberActionError(e.message || 'Ката кетти');
+    } catch (e) { console.error(e); }
+    setOpenMemberMenu(null);
+  }
+
+  async function handleSaveName() {
+    const trimmed = nameDraft.trim();
+    if (!trimmed || trimmed === room.name) { setEditingName(false); return; }
+    setSavingName(true);
+    try {
+      await api.updateGroup(roomId, { name: trimmed });
+      onUpdated();
+      setEditingName(false);
+    } catch (e) { console.error(e); }
+    finally { setSavingName(false); }
+  }
+
+  async function handleAvatarSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setAvatarError('Выберите изображение'); setTimeout(() => setAvatarError(''), 4000); return; }
+    setUploadingAvatar(true);
+    try {
+      const dataUrl = await compressAvatarImage(file);
+      await api.updateGroup(roomId, { avatar: dataUrl });
+      onUpdated();
+    } catch {
+      setAvatarError('Изображение слишком большое или не открывается');
+      setTimeout(() => setAvatarError(''), 4000);
     } finally {
-      setBusyMemberId(null);
+      setUploadingAvatar(false);
     }
   }
 
-  async function handleRemoveMember(m: User) {
-    setOpenMemberMenu(null);
-    if (!confirm(`${m.name} топтон чыгарылсынбы?`)) return;
-    setBusyMemberId(m.id);
+  async function handleRemoveAvatar() {
+    setUploadingAvatar(true);
     try {
-      await api.removeGroupMember(roomId, m.id);
-      setMembers(prev => prev.filter(x => x.id !== m.id));
+      await api.updateGroup(roomId, { avatar: null });
       onUpdated();
-    } catch (e: any) {
-      showMemberActionError(e.message || 'Ката кетти');
-    } finally {
-      setBusyMemberId(null);
-    }
+    } catch (e) { console.error(e); }
+    finally { setUploadingAvatar(false); }
   }
 
   return (
@@ -735,94 +907,68 @@ function GroupInfoModal({ room, roomId, onClose, onUpdated, onLeft, onViewAvatar
 
           <input type="file" accept="image/*" ref={avatarInputRef} onChange={handleAvatarSelect} className="hidden" />
           <div className="relative mb-3">
-            <button
-              type="button"
-              onClick={() => { if (avatarPreview) onViewAvatar(avatarPreview); else if (isOwner) avatarInputRef.current?.click(); }}
-              disabled={uploadingAvatar}
-              className={`w-24 h-24 rounded-full bg-white/20 flex items-center justify-center overflow-hidden ${avatarPreview || isOwner ? 'cursor-pointer hover:brightness-90 transition' : ''}`}
-              title={avatarPreview ? 'Сүрөттү көрүү' : (isOwner ? 'Сүрөттү өзгөртүү' : undefined)}
-            >
-              {avatarPreview ? (
-                <img src={avatarPreview} alt="" className="w-full h-full object-cover" />
-              ) : (
-                <Users size={34} />
-              )}
-              {uploadingAvatar && (
-                <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full">
-                  <span className="text-[10px]">...</span>
-                </div>
-              )}
-            </button>
-            {isOwner && !uploadingAvatar && (
-              <span
+            <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center overflow-hidden">
+              {room.avatar ? <img src={room.avatar} alt="" className="w-full h-full object-cover" /> : <Users size={32} />}
+            </div>
+            {isAdmin && (
+              <button
                 onClick={() => avatarInputRef.current?.click()}
-                className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-white text-emerald-700 flex items-center justify-center shadow border-2 cursor-pointer"
-                style={{ borderColor: WA_GREEN_DARK }}
-                title="Сүрөттү өзгөртүү"
+                disabled={uploadingAvatar}
+                className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-md"
+                title="Изменить фото"
               >
-                <Pencil size={14} />
-              </span>
+                <Camera size={15} style={{ color: WA_GREEN }} />
+              </button>
             )}
           </div>
-          {avatarError && <div className="text-[11px] text-red-100 bg-red-500/40 rounded px-2 py-1 mb-2">{avatarError}</div>}
+          {isAdmin && room.avatar && (
+            <button onClick={handleRemoveAvatar} disabled={uploadingAvatar} className="text-[11px] text-white/70 hover:text-white underline mb-2">
+              Удалить фото
+            </button>
+          )}
+          {avatarError && <div className="text-[11px] text-red-100 bg-red-500/30 px-2 py-1 rounded mb-2">{avatarError}</div>}
 
           {editingName ? (
-            <div className="w-full px-4">
+            <div className="flex items-center gap-2 px-6 w-full">
               <input
+                value={nameDraft}
+                onChange={e => setNameDraft(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') { setEditingName(false); setNameDraft(room.name || ''); } }}
+                className="flex-1 rounded-full px-3 py-1.5 text-sm text-slate-800"
                 autoFocus
-                value={nameInput}
-                onChange={e => setNameInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') { setEditingName(false); setNameInput(room.name || ''); } }}
-                className="w-full text-center bg-white/15 placeholder-white/60 rounded-full px-3 py-1.5 text-sm font-semibold outline-none focus:bg-white/25"
-                maxLength={60}
               />
-              {nameError && <div className="text-[11px] text-red-100 text-center mt-1">{nameError}</div>}
-              <div className="flex items-center justify-center gap-2 mt-2">
-                <button onClick={handleSaveName} disabled={savingName} className="text-xs font-semibold bg-white text-emerald-700 px-3 py-1 rounded-full">
-                  {savingName ? 'Сакталууда...' : 'Сактоо'}
-                </button>
-                <button onClick={() => { setEditingName(false); setNameInput(room.name || ''); setNameError(''); }} className="text-xs font-semibold text-white/80 px-3 py-1 rounded-full hover:bg-white/10">
-                  Жокко чыгаруу
-                </button>
-              </div>
+              <button onClick={handleSaveName} disabled={savingName} className="p-1.5 rounded-full bg-white/20 hover:bg-white/30">
+                <ShieldCheck size={16} />
+              </button>
             </div>
           ) : (
             <button
-              type="button"
-              onClick={() => isOwner && setEditingName(true)}
-              className={`font-bold text-lg text-center px-6 flex items-center gap-2 ${isOwner ? 'hover:opacity-90' : ''}`}
-              disabled={!isOwner}
-              title={isOwner ? 'Атын өзгөртүү' : undefined}
+              onClick={() => isAdmin && setEditingName(true)}
+              className={`font-bold text-lg text-center px-6 flex items-center gap-1.5 ${isAdmin ? 'hover:underline' : ''}`}
             >
               {room.name || 'Топ'}
-              {isOwner && (
-                <span className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center shrink-0">
-                  <Pencil size={12} />
-                </span>
-              )}
+              {isAdmin && <Pencil size={14} className="text-white/70" />}
             </button>
           )}
-          <div className="text-xs text-white/75 mt-1">{room.participants.length} мүчө</div>
+          <div className="text-xs text-white/75 mt-1">{room.participants.length} участников</div>
         </div>
 
         <div className="p-4 sm:p-5">
-          {memberActionError && <div className="mb-3 text-[11px] text-red-600 bg-red-50 rounded-lg px-2.5 py-1.5">{memberActionError}</div>}
-
           <div className="flex items-center justify-between mb-3">
-            <div className="font-semibold text-sm text-slate-700">Мүчөлөр</div>
+            <div className="font-semibold text-sm text-slate-700">Участники</div>
             <button onClick={() => setShowAdd(v => !v)} className="flex items-center gap-1.5 text-sm font-medium" style={{ color: WA_GREEN }}>
-              <UserPlus size={16} /> Кошуу
+              <UserPlus size={16} /> Добавить
             </button>
           </div>
 
           {showAdd && (
             <div className="mb-4 bg-surface rounded-xl p-3">
-              <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Аты же email боюнча издөө..."
+              <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Поиск по имени, email или номеру..."
                 className="input w-full mb-2 text-sm rounded-full" />
               <div className="max-h-40 overflow-y-auto space-y-1">
-                {searching && <div className="text-xs text-muted px-2 py-1">Издөө...</div>}
+                {searching && <div className="text-xs text-muted px-2 py-1">Поиск...</div>}
                 {!searching && query.trim().length >= 2 && results.length === 0 && (
-                  <div className="text-xs text-muted px-2 py-1">Табылган жок</div>
+                  <div className="text-xs text-muted px-2 py-1">Ничего не найдено</div>
                 )}
                 {results.map(u => (
                   <button key={u.id} onClick={() => handleAdd(u)} disabled={adding === u.id}
@@ -843,75 +989,41 @@ function GroupInfoModal({ room, roomId, onClose, onUpdated, onLeft, onViewAvatar
 
           <div className="space-y-1">
             {loadingMembers ? (
-              <div className="text-sm text-muted px-2 py-3">Жүктөлүүдө...</div>
+              <div className="text-sm text-muted px-2 py-3">Загрузка...</div>
             ) : members.map(m => {
-              const isSelf = m.id === user?.id;
-              const memberIsOwner = room.ownerId === m.id;
-              const busy = busyMemberId === m.id;
+              const memberIsAdmin = room.ownerId === m.id || (room.admins || []).includes(m.id);
+              const canManage = isAdmin && m.id !== user?.id && m.id !== room.ownerId;
               return (
-                <div key={m.id} className="relative flex items-center gap-3 px-2 py-2.5 rounded-lg hover:bg-surface/60">
-                  <button
-                    type="button"
-                    onClick={() => !isSelf && onOpenDirectChat(m.id)}
-                    disabled={isSelf}
-                    className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0 ${isSelf ? '' : 'cursor-pointer hover:brightness-90 transition'}`}
-                    style={{ background: `linear-gradient(135deg, ${WA_GREEN}, ${WA_GREEN_DARK})` }}
-                    title={isSelf ? undefined : `${m.name} менен жазышуу`}
-                  >
-                    {m.name[0]}
+                <div key={m.id} className="flex items-center gap-3 px-2 py-2.5 rounded-lg relative">
+                  <button onClick={() => onOpenProfile(m.id)} className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0 overflow-hidden" style={{ background: `linear-gradient(135deg, ${WA_GREEN}, ${WA_GREEN_DARK})` }}>
+                    {m.avatar ? <img src={m.avatar} alt="" className="w-full h-full object-cover" /> : m.name[0]}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => !isSelf && onOpenDirectChat(m.id)}
-                    disabled={isSelf}
-                    className={`flex-1 min-w-0 text-left ${isSelf ? '' : 'cursor-pointer'}`}
-                  >
+                  <button onClick={() => onOpenProfile(m.id)} className="flex-1 min-w-0 text-left">
                     <div className="font-medium text-sm truncate flex items-center gap-1.5">
                       {m.name}
-                      {isSelf && <span className="text-[10px] text-muted font-normal">(сиз)</span>}
-                      {memberIsOwner && <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary-50 text-primary-700 font-normal">админ</span>}
+                      {m.id === user?.id && <span className="text-[10px] text-muted font-normal">(вы)</span>}
+                      {room.ownerId === m.id && <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary-50 text-primary-700 font-normal">владелец</span>}
+                      {memberIsAdmin && room.ownerId !== m.id && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-normal">админ</span>}
                     </div>
                     {m.phone && (
                       <div className="text-xs text-muted flex items-center gap-1"><Phone size={11} /> {m.phone}</div>
                     )}
                   </button>
-
-                  {!isSelf && (
-                    <div className="relative shrink-0" ref={openMemberMenu === m.id ? memberMenuRef : undefined}>
-                      <button
-                        type="button"
-                        onClick={() => setOpenMemberMenu(v => v === m.id ? null : m.id)}
-                        disabled={busy}
-                        className="p-1.5 rounded-full hover:bg-slate-100 text-slate-500"
-                        title="Аракеттер"
-                      >
-                        {busy ? <span className="text-[10px]">...</span> : <MoreVertical size={16} />}
+                  {canManage && (
+                    <div className="relative" data-room-menu>
+                      <button onClick={() => setOpenMemberMenu(v => v === m.id ? null : m.id)} className="p-1.5 rounded-full hover:bg-surface text-slate-400">
+                        <MoreVertical size={16} />
                       </button>
                       {openMemberMenu === m.id && (
-                        <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-xl shadow-lg border border-slate-100 py-1 z-10">
-                          <button
-                            onClick={() => { setOpenMemberMenu(null); onOpenDirectChat(m.id); }}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-surface text-slate-700"
-                          >
-                            <MessageCircle size={15} /> Жазуу
+                        <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-lg border border-border z-20 py-1 w-48">
+                          {room.ownerId === user?.id && (
+                            <button onClick={() => handleToggleAdmin(m, !memberIsAdmin)} className="w-full text-left px-3 py-2 text-sm hover:bg-surface flex items-center gap-2">
+                              <ShieldCheck size={14} /> {memberIsAdmin ? 'Убрать права админа' : 'Сделать админом'}
+                            </button>
+                          )}
+                          <button onClick={() => handleRemoveMember(m)} className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-red-50 flex items-center gap-2">
+                            <UserMinus size={14} /> Удалить из группы
                           </button>
-                          {isOwner && (
-                            <button
-                              onClick={() => handleToggleAdmin(m)}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-surface text-slate-700"
-                            >
-                              {memberIsOwner ? <ShieldOff size={15} /> : <Shield size={15} />}
-                              {memberIsOwner ? 'Админдиктен алуу' : 'Админ кылуу'}
-                            </button>
-                          )}
-                          {isOwner && (
-                            <button
-                              onClick={() => handleRemoveMember(m)}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-red-50 text-red-500"
-                            >
-                              <UserMinus size={15} /> Топтон чыгаруу
-                            </button>
-                          )}
                         </div>
                       )}
                     </div>
@@ -923,8 +1035,109 @@ function GroupInfoModal({ room, roomId, onClose, onUpdated, onLeft, onViewAvatar
 
           <button onClick={handleLeave} disabled={leaving}
             className="w-full mt-5 flex items-center justify-center gap-2 text-red-500 font-medium text-sm py-2.5 rounded-xl hover:bg-red-50">
-            <LogOut size={16} /> {leaving ? 'Чыгууда...' : 'Топтон чыгуу'}
+            <LogOut size={16} /> {leaving ? 'Выход...' : 'Покинуть группу'}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── New chat: WhatsApp-style contact picker ──
+   Top option "Новая группа" opens the group creation flow.
+   Tapping any found contact starts a direct 1:1 chat immediately. */
+function NewChatModal({ onClose, onOpenNewGroup, onChatStarted }: {
+  onClose: () => void;
+  onOpenNewGroup: () => void;
+  onChatStarted: (roomId: string) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<User[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [starting, setStarting] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  useEffect(() => {
+    if (query.trim().length < 2) { setResults([]); return; }
+    setSearching(true);
+    const t = setTimeout(() => {
+      api.searchUsers(query.trim())
+        .then(d => setResults(d.users || []))
+        .catch(() => setResults([]))
+        .finally(() => setSearching(false));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  async function handlePick(u: User) {
+    setStarting(u.id);
+    try {
+      const d = await api.startChat(u.id);
+      onChatStarted(d.roomId);
+    } catch (e) { console.error(e); }
+    finally { setStarting(null); }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-3 sm:p-4">
+      <div className="bg-white rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto flex flex-col">
+        <div className="flex items-center justify-between p-4 sm:p-5 text-white shrink-0" style={{ background: WA_GREEN }}>
+          <div className="font-semibold text-lg">Новый чат</div>
+          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-white/15"><X size={18} /></button>
+        </div>
+
+        <div className="p-3 sm:p-4 border-b border-border shrink-0">
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Поиск по имени, email или номеру..."
+            className="input w-full rounded-full text-sm"
+          />
+        </div>
+
+        <div className="overflow-y-auto flex-1">
+          <button
+            onClick={onOpenNewGroup}
+            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface text-left border-b border-slate-100"
+          >
+            <div className="w-11 h-11 rounded-full flex items-center justify-center text-white shrink-0" style={{ background: WA_GREEN }}>
+              <Users size={19} />
+            </div>
+            <div className="font-medium text-sm text-slate-800">Новая группа</div>
+          </button>
+
+          {query.trim().length < 2 && (
+            <div className="px-4 py-6 text-center text-muted text-sm">Начните вводить имя, email или номер телефона</div>
+          )}
+          {searching && (
+            <div className="px-4 py-3 text-xs text-muted">Поиск...</div>
+          )}
+          {!searching && query.trim().length >= 2 && results.length === 0 && (
+            <div className="px-4 py-6 text-center text-muted text-sm">Ничего не найдено</div>
+          )}
+          {results.map(u => (
+            <button
+              key={u.id}
+              onClick={() => handlePick(u)}
+              disabled={starting === u.id}
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface text-left border-b border-slate-50"
+            >
+              <div className="w-11 h-11 rounded-full flex items-center justify-center font-bold text-white shrink-0 overflow-hidden" style={{ background: `linear-gradient(135deg, ${WA_GREEN}, ${WA_GREEN_DARK})` }}>
+                {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : u.name[0]}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-sm truncate text-slate-800 flex items-center gap-1.5">
+                  {u.name}
+                  {u.verified && <BadgeCheck size={13} style={{ color: WA_GREEN }} />}
+                </div>
+                <div className="text-[12px] text-muted truncate">{u.phone || u.email}</div>
+              </div>
+              {starting === u.id && <span className="text-xs text-muted shrink-0">...</span>}
+            </button>
+          ))}
         </div>
       </div>
     </div>
@@ -970,11 +1183,11 @@ function NewGroupModal({ onClose, onCreated }: { onClose: () => void; onCreated:
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-3 sm:p-4">
       <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-4 sm:p-5 text-white rounded-t-2xl" style={{ background: WA_GREEN }}>
-          <div className="font-semibold text-lg">Жаңы топ</div>
+          <div className="font-semibold text-lg">Новая группа</div>
           <button onClick={onClose} className="p-1.5 rounded-full hover:bg-white/15"><X size={18} /></button>
         </div>
         <div className="p-4 sm:p-5">
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="Топтун аты"
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="Название группы"
             className="input w-full mb-3 rounded-full" />
 
           {selected.length > 0 && (
@@ -988,13 +1201,13 @@ function NewGroupModal({ onClose, onCreated }: { onClose: () => void; onCreated:
             </div>
           )}
 
-          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Аты же email боюнча издөө..."
+          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Поиск по имени, email или номеру..."
             className="input w-full mb-2 rounded-full" />
 
           <div className="max-h-48 overflow-y-auto mb-4 space-y-1">
-            {searching && <div className="text-xs text-muted px-2 py-1">Издөө...</div>}
+            {searching && <div className="text-xs text-muted px-2 py-1">Поиск...</div>}
             {!searching && query.trim().length >= 2 && results.length === 0 && (
-              <div className="text-xs text-muted px-2 py-1">Табылган жок</div>
+              <div className="text-xs text-muted px-2 py-1">Ничего не найдено</div>
             )}
             {results.map(u => (
               <button key={u.id} onClick={() => toggle(u)}
@@ -1012,7 +1225,7 @@ function NewGroupModal({ onClose, onCreated }: { onClose: () => void; onCreated:
 
           <button disabled={creating || !name.trim() || selected.length === 0} onClick={create}
             className="btn w-full text-white rounded-full" style={{ background: (creating || !name.trim() || selected.length === 0) ? '#94a3b8' : WA_GREEN }}>
-            {creating ? 'Түзүлүүдө...' : 'Топ түзүү'}
+            {creating ? 'Создание...' : 'Создать группу'}
           </button>
         </div>
       </div>

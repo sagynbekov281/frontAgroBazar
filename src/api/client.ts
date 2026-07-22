@@ -44,18 +44,24 @@ export const api = {
   createTransport: (d: any) => req('/transport', { method: 'POST', body: JSON.stringify(d) }),
 
   getRooms: () => req('/chat/rooms'),
+
   getMessages: (roomId: string) => req(`/chat/rooms/${roomId}/messages`),
   sendMessage: (roomId: string, text: string, replyTo?: string) => req(`/chat/rooms/${roomId}/messages`, { method: 'POST', body: JSON.stringify({ text, replyTo }) }),
   startChat: (userId: string) => req('/chat/start', { method: 'POST', body: JSON.stringify({ userId }) }),
   startDirectChat: (userId: string) => req('/chat/start', { method: 'POST', body: JSON.stringify({ userId }) }),
   createGroup: (name: string, userIds: string[]) => req('/chat/groups', { method: 'POST', body: JSON.stringify({ name, userIds }) }),
   addGroupMember: (roomId: string, userId: string) => req(`/chat/groups/${roomId}/members`, { method: 'POST', body: JSON.stringify({ userId }) }),
-  setGroupAdmin: (roomId: string, userId: string, isAdmin: boolean) => req(`/chat/groups/${roomId}/members/${userId}`, { method: 'PATCH', body: JSON.stringify({ isAdmin }) }),
-  removeGroupMember: (roomId: string, userId: string) => req(`/chat/groups/${roomId}/members/${userId}`, { method: 'DELETE' }),
   updateGroup: (roomId: string, d: { name?: string; avatar?: string | null }) => req(`/chat/groups/${roomId}`, { method: 'PATCH', body: JSON.stringify(d) }),
   markRead: (roomId: string) => req(`/chat/rooms/${roomId}/read`, { method: 'POST' }),
-  deleteMessage: (roomId: string, messageId: string) => req(`/chat/rooms/${roomId}/messages/${messageId}`, { method: 'DELETE' }),
   leaveGroup: (roomId: string) => req(`/chat/groups/${roomId}/leave`, { method: 'POST' }),
+
+  deleteMessage: (roomId: string, messageId: string, mode: 'me' | 'everyone') => req(`/chat/rooms/${roomId}/messages/${messageId}?mode=${mode}`, { method: 'DELETE' }),
+  deleteChat: (roomId: string) => req(`/chat/rooms/${roomId}`, { method: 'DELETE' }),
+  removeGroupMember: (roomId: string, userId: string) => req(`/chat/groups/${roomId}/remove`, { method: 'POST', body: JSON.stringify({ userId }) }),
+  setGroupAdmin: (roomId: string, userId: string, makeAdmin: boolean) => req(`/chat/groups/${roomId}/admins`, { method: 'POST', body: JSON.stringify({ userId, makeAdmin }) }),
+
+  // Никнейм собеседника в личном чате (виден только тебе)
+  setChatNickname: (roomId: string, nickname: string | null) => req(`/chat/rooms/${roomId}/nickname`, { method: 'PATCH', body: JSON.stringify({ nickname }) }),
 
   getReviews: (userId: string) => req(`/reviews/${userId}`),
   createReview: (d: any) => req('/reviews', { method: 'POST', body: JSON.stringify(d) }),

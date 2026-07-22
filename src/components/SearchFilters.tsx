@@ -6,26 +6,26 @@ interface Props { filters: Filters; onChange(f: Partial<Filters>): void; }
 
 export default function SearchFilters({ filters, onChange }: Props) {
   const categoryOptions = [
-    { value: '', label: 'Баары' },
+    { value: '', label: 'Все' },
     ...CATEGORIES.map(c => ({ value: c.value, label: `${c.emoji} ${c.labelRu}` })),
   ];
 
   const regionOptions = [
-    { value: '', label: 'Баары' },
+    { value: '', label: 'Все' },
     ...REGIONS.map(r => ({ value: r, label: r })),
   ];
 
   const sortOptions = [
-    { value: '', label: 'Жаңы' },
-    { value: 'price_asc', label: 'Баасы: төмөн' },
-    { value: 'price_desc', label: 'Баасы: жогору' },
-    { value: 'popular', label: 'Популярдуу' },
+    { value: '', label: 'Новые' },
+    { value: 'price_asc', label: 'Цена: ниже' },
+    { value: 'price_desc', label: 'Цена: выше' },
+    { value: 'popular', label: 'Популярные' },
     { value: 'vip', label: 'VIP' },
   ];
 
   return (
     <div className="card p-4 space-y-4">
-      <h3 className="font-semibold text-sm">Фильтрлер</h3>
+      <h3 className="font-semibold text-sm">Фильтры</h3>
 
       <div>
         <label className="label">Категория</label>
@@ -33,7 +33,7 @@ export default function SearchFilters({ filters, onChange }: Props) {
           value={filters.category}
           options={categoryOptions}
           onChange={value => onChange({ category: value })}
-          placeholder="Баары"
+          placeholder="Все"
         />
       </div>
 
@@ -43,27 +43,27 @@ export default function SearchFilters({ filters, onChange }: Props) {
           value={filters.region}
           options={regionOptions}
           onChange={value => onChange({ region: value })}
-          placeholder="Баары"
+          placeholder="Все"
         />
       </div>
 
       <div>
-        <label className="label">Сорттоо</label>
+        <label className="label">Сортировка</label>
         <CustomSelect
           value={filters.sort}
           options={sortOptions}
           onChange={value => onChange({ sort: value })}
-          placeholder="Жаңы"
+          placeholder="Новые"
         />
       </div>
 
       <div className="space-y-2">
         <label className="label">Параметрлер</label>
         {[
-          { key: 'organic', label: '🌿 Органик' },
-          { key: 'exportReady', label: '✈️ Экспортко даяр' },
-          { key: 'hasDelivery', label: '🚚 Жеткирүү бар' },
-          { key: 'vip', label: '⭐ VIP жарыялар' },
+          { key: 'organic', label: '🌿 Органический' },
+          { key: 'exportReady', label: '✈️ Готов к экспорту' },
+          { key: 'hasDelivery', label: '🚚 Есть доставка' },
+          { key: 'vip', label: '⭐ VIP-объявления' },
         ].map(({ key, label }) => (
           <label key={key} className="flex items-center gap-2 text-sm cursor-pointer">
             <input
@@ -79,7 +79,7 @@ export default function SearchFilters({ filters, onChange }: Props) {
 
       <button onClick={() => onChange({ category: '', region: '', organic: '', exportReady: '', hasDelivery: '', vip: '', sort: '' })}
         className="w-full btn btn-outline text-sm">
-        Тазалоо
+        Очистить
       </button>
     </div>
   );

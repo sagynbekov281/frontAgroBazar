@@ -119,6 +119,21 @@ export interface Announcement {
   createdAt: string;
 }
 
+export interface ChatRoom {
+  id: string;
+  isGroup: boolean;
+  name?: string;
+  avatar?: string;
+  ownerId?: string;
+  admins?: string[];
+  participants: { id: string; name: string; avatar?: string }[];
+  lastMessage?: string;
+  lastAt?: string;
+  unread: number;
+  /** Никнеймы для личных чатов: ключ — id владельца никнейма (кому присвоено значение он видит только сам). На фронте храним просто { [roomId]: nickname } для текущего юзера, приходит уже resolved. */
+  nickname?: string;
+}
+
 export interface ChatMessage {
   id: string;
   roomId: string;
@@ -130,22 +145,10 @@ export interface ChatMessage {
   readBy?: string[];
   replyTo?: string;
   deleted?: boolean;
+  deletedFor?: string[];
   type?: 'text' | 'image' | 'system';
   fileUrl?: string;
 }
-
-export interface ChatRoom {
-  id: string;
-  isGroup: boolean;
-  name?: string;
-  avatar?: string;
-  ownerId?: string;
-  participants: { id: string; name: string; avatar?: string }[];
-  lastMessage?: string;
-  lastAt?: string;
-  unread: number;
-}
-
 export interface TransportListing {
   id: string;
   ownerId: string;

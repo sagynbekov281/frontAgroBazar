@@ -7,9 +7,9 @@ import { ROLE_LABELS } from '../constants';
 
 const navLinks = [
   { to: '/catalog', label: 'Каталог' },
-  { to: '/announcements', label: 'Сатып алуу' },
+  { to: '/announcements', label: 'Покупка' },
   { to: '/transport', label: 'Транспорт' },
-  { to: '/prices', label: 'Баалар' },
+  { to: '/prices', label: 'Цены' },
 ];
 
 export default function Navbar() {
@@ -81,8 +81,8 @@ export default function Navbar() {
               </div>
             ) : (
               <div className="flex items-center gap-1.5 sm:gap-2 ml-0.5 sm:ml-1">
-                <Link to="/login" className="btn btn-outline text-xs sm:text-sm px-2.5 sm:px-3 py-1.5 sm:py-2 hidden sm:flex">Кирүү</Link>
-                <Link to="/register" className="btn btn-primary text-xs sm:text-sm px-2.5 sm:px-3 py-1.5 sm:py-2">Катталуу</Link>
+                <Link to="/login" className="btn btn-outline text-xs sm:text-sm px-2.5 sm:px-3 py-1.5 sm:py-2 hidden sm:flex">Войти</Link>
+                <Link to="/register" className="btn btn-primary text-xs sm:text-sm px-2.5 sm:px-3 py-1.5 sm:py-2">Зарегистрироваться</Link>
               </div>
             )}
             <button className="md:hidden p-2 sm:p-2.5 rounded-xl hover:bg-surface shrink-0" onClick={() => setOpen(!open)}>
@@ -102,7 +102,7 @@ export default function Navbar() {
           {user && (
             <NavLink to={dashPath} className={({ isActive }) =>
               `px-3 py-1.5 rounded-lg text-sm font-medium transition ${isActive ? 'text-primary-700 bg-primary-50' : 'text-muted hover:text-text hover:bg-surface'}`}>
-              Кабинет
+              Личный кабинет
             </NavLink>
           )}
           {user?.role === 'admin' && (
@@ -121,17 +121,17 @@ export default function Navbar() {
         <div className="md:hidden border-t border-border bg-card px-4 py-3 space-y-1 max-h-[calc(100vh-56px)] overflow-y-auto">
           <form onSubmit={handleSearch} className="relative mb-3">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Издөө..." className="input pl-9 text-sm" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск..." className="input pl-9 text-sm" />
           </form>
 
           {/* тез шилтемелер (сүрөттөр, коопсоздук иконка) */}
           <div className="grid grid-cols-2 gap-2 mb-3">
             <Link to="/favorites" onClick={() => setOpen(false)} className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-surface font-medium text-sm">
-              <Heart size={16} className="text-muted shrink-0" /> Сактап алгандар
+              <Heart size={16} className="text-muted shrink-0" /> Сохранённые
               {ids.length > 0 && <span className="ml-auto w-5 h-5 bg-accent-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{ids.length}</span>}
             </Link>
             <Link to="/notifications" onClick={() => setOpen(false)} className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-surface font-medium text-sm">
-              <Bell size={16} className="text-muted shrink-0" /> Билдирмелер
+              <Bell size={16} className="text-muted shrink-0" /> Уведомления
             </Link>
           </div>
 
@@ -139,18 +139,18 @@ export default function Navbar() {
 
           {user ? (
             <>
-              <Link to={dashPath} onClick={() => setOpen(false)} className="block px-3 py-2.5 rounded-xl font-medium hover:bg-surface">Кабинет</Link>
+              <Link to={dashPath} onClick={() => setOpen(false)} className="block px-3 py-2.5 rounded-xl font-medium hover:bg-surface">Личный кабинет</Link>
               {user.role === 'admin' && (
                 <div className="flex items-center gap-1 px-3 py-1 text-xs text-accent-600 font-semibold"><ShieldCheck size={13} /> Admin</div>
               )}
               <button onClick={() => { logout(); setOpen(false); navigate('/'); }} className="w-full text-left px-3 py-2.5 rounded-xl font-medium text-red-600 hover:bg-red-50 flex items-center gap-2">
-                <LogOut size={16} /> Чыгуу
+                <LogOut size={16} /> Выйти
               </button>
             </>
           ) : (
             <div className="flex gap-2 pt-2">
-              <Link to="/login" onClick={() => setOpen(false)} className="flex-1 btn btn-outline">Кирүү</Link>
-              <Link to="/register" onClick={() => setOpen(false)} className="flex-1 btn btn-primary">Катталуу</Link>
+              <Link to="/login" onClick={() => setOpen(false)} className="flex-1 btn btn-outline">Войти</Link>
+              <Link to="/register" onClick={() => setOpen(false)} className="flex-1 btn btn-primary">Зарегистрироваться</Link>
             </div>
           )}
         </div>

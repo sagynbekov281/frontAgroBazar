@@ -1,22 +1,22 @@
 import type { ListingCategory } from './types';
 
 export const CATEGORIES: { value: ListingCategory; labelRu: string; labelKy: string; emoji: string }[] = [
-  { value: 'vegetables', labelRu: 'Овощи', labelKy: 'Жашылча', emoji: '🥬' },
-  { value: 'fruits', labelRu: 'Фрукты', labelKy: 'Мөмө', emoji: '🍎' },
-  { value: 'grain', labelRu: 'Зерно', labelKy: 'Дан', emoji: '🌾' },
-  { value: 'dairy', labelRu: 'Молочное', labelKy: 'Сүт', emoji: '🥛' },
-  { value: 'meat', labelRu: 'Мясо', labelKy: 'Эт', emoji: '🥩' },
-  { value: 'poultry', labelRu: 'Птица', labelKy: 'Тоок', emoji: '🐔' },
-  { value: 'eggs', labelRu: 'Яйца', labelKy: 'Жумуртка', emoji: '🥚' },
-  { value: 'honey', labelRu: 'Мёд', labelKy: 'Бал', emoji: '🍯' },
-  { value: 'feed', labelRu: 'Корма', labelKy: 'Тоют', emoji: '🌿' },
-  { value: 'fertilizer', labelRu: 'Удобрения', labelKy: 'Жер семирткич', emoji: '🪴' },
-  { value: 'seeds', labelRu: 'Семена', labelKy: 'Үрөн', emoji: '🌱' },
-  { value: 'livestock', labelRu: 'Животные', labelKy: 'Мал', emoji: '🐄' },
+  { value: 'vegetables', labelRu: 'Овощи', labelKy: 'Овощи', emoji: '🥬' },
+  { value: 'fruits', labelRu: 'Фрукты', labelKy: 'Фрукты', emoji: '🍎' },
+  { value: 'grain', labelRu: 'Зерно', labelKy: 'Зерно', emoji: '🌾' },
+  { value: 'dairy', labelRu: 'Молочное', labelKy: 'Молочное', emoji: '🥛' },
+  { value: 'meat', labelRu: 'Мясо', labelKy: 'Мясо', emoji: '🥩' },
+  { value: 'poultry', labelRu: 'Птица', labelKy: 'Птица', emoji: '🐔' },
+  { value: 'eggs', labelRu: 'Яйца', labelKy: 'Яйца', emoji: '🥚' },
+  { value: 'honey', labelRu: 'Мёд', labelKy: 'Мёд', emoji: '🍯' },
+  { value: 'feed', labelRu: 'Корма', labelKy: 'Корма', emoji: '🌿' },
+  { value: 'fertilizer', labelRu: 'Удобрения', labelKy: 'Удобрения', emoji: '🪴' },
+  { value: 'seeds', labelRu: 'Семена', labelKy: 'Семена', emoji: '🌱' },
+  { value: 'livestock', labelRu: 'Животные', labelKy: 'Животные', emoji: '🐄' },
   { value: 'equipment', labelRu: 'Техника', labelKy: 'Техника', emoji: '🚜' },
-  { value: 'irrigation', labelRu: 'Полив', labelKy: 'Сугаруу', emoji: '💧' },
-  { value: 'greenhouse', labelRu: 'Теплицы', labelKy: 'Күнөскана', emoji: '🏗️' },
-  { value: 'other', labelRu: 'Другое', labelKy: 'Башкалар', emoji: '📦' },
+  { value: 'irrigation', labelRu: 'Полив', labelKy: 'Полив', emoji: '💧' },
+  { value: 'greenhouse', labelRu: 'Теплицы', labelKy: 'Теплицы', emoji: '🏗️' },
+  { value: 'other', labelRu: 'Другое', labelKy: 'Другое', emoji: '📦' },
 ];
 
 export const REGIONS = [
@@ -33,20 +33,20 @@ export const REGIONS = [
 
 export const ROLE_LABELS: Record<string, string> = {
   farmer: 'Фермер',
-  buyer: 'Сатып алуучу',
+  buyer: 'Покупатель',
   cooperative: 'Кооператив',
-  exporter: 'Экспорттоочу',
+  exporter: 'Экспортёр',
   transport: 'Транспорт',
   company: 'Компания',
   admin: 'Администратор',
 };
 
 export const ORDER_STATUS: Record<string, { label: string; color: string }> = {
-  new:       { label: 'Жаңы',      color: 'badge-blue' },
-  confirmed: { label: 'Ырасталган', color: 'badge-green' },
-  shipped:   { label: 'Жолдо',     color: 'badge-orange' },
-  completed: { label: 'Аяктады',   color: 'badge-green' },
-  cancelled: { label: 'Жокко чыгарылды', color: 'badge-gray' },
+  new:       { label: 'Новый',      color: 'badge-blue' },
+  confirmed: { label: 'Подтверждён', color: 'badge-green' },
+  shipped:   { label: 'В пути',     color: 'badge-orange' },
+  completed: { label: 'Завершён',   color: 'badge-green' },
+  cancelled: { label: 'Отменён', color: 'badge-gray' },
 };
 
 export const TRANSPORT_TYPES: Record<string, string> = {

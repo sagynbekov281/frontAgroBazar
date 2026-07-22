@@ -8,22 +8,22 @@ import ListingCard from '../components/ListingCard';
 import pole from '../assets/2017-06-08-10-25-35.jpg';
 
 const STATS = [
-  { label: 'Фермерлер', value: '2,400+' },
-  { label: 'Активдүү жарыялар', value: '18,000+' },
+  { label: 'Фермеры', value: '2,400+' },
+  { label: 'Активные объявления', value: '18,000+' },
   { label: 'Аймактар', value: '9' },
-  { label: 'Сатуулар', value: '₩ 840М+' },
+  { label: 'Продажи', value: '₩ 840М+' },
 ];
 
 const NEWS = [
-  { title: 'Кыргызстан 2025-жылы жашылча экспортун 30% га өстүрдү', date: '15 июнь 2025', tag: 'Жаңылык' },
-  { title: 'Жаңы мамлекеттик программа: фермерлерге 50% субсидия', date: '12 июнь 2025', tag: 'Программа' },
+  { title: 'В 2025 году Кыргызстан увеличил экспорт овощей на 30%', date: '15 июня 2025', tag: 'Новость' },
+  { title: 'Новая государственная программа: 50% субсидия для фермеров', date: '12 июня 2025', tag: 'Программа' },
   { title: 'AgroBazar мобилдик колдонмосу жеткиликтүү болду', date: '8 июнь 2025', tag: 'Платформа' },
 ];
 
 const TESTIMONIALS = [
-  { name: 'Айбек Турсунов', role: 'Фермер, Чуй', text: 'AgroBazar аркылуу мен өз картошкамды 40% кымбатыраак сатам. Ортомчулар жок!', rating: 5 },
-  { name: 'Гүлнара Асанова', role: 'Сатып алуучу, Бишкек', text: 'Бир жерден бир нече фермер менен байланышып, баасын салыштырдым. Абдан ыңгайлуу.', rating: 5 },
-  { name: 'КамАЗ ЖЧК', role: 'Транспорт, Ош', text: 'Жүк табуу мурда кыйын болчу. Эми AgroBazar аркылуу ар дайым жүк бар.', rating: 4 },
+  { name: 'Айбек Турсунов', role: 'Фермер, Чуй', text: 'Благодаря AgroBazar я продаю картофель на 40% дороже. Без посредников!', rating: 5 },
+  { name: 'Гульнара Асанова', role: 'Покупатель, Бишкек', text: 'В одном месте связалась с несколькими фермерами и сравнила цены. Очень удобно.', rating: 5 },
+  { name: 'КамАЗ ООО', role: 'Транспорт, Ош', text: 'Раньше было трудно найти груз. Теперь через AgroBazar груз есть всегда.', rating: 4 },
 ];
 
 export default function Home() {
@@ -51,20 +51,20 @@ export default function Home() {
         </div>
         <div className="relative max-w-7xl mx-auto px-4 py-12 sm:py-16 md:py-24">
           <div className="max-w-2xl">
-            <div className="badge bg-white/20 text-white mb-4 text-[11px] sm:text-xs">🇰🇬 Кыргызстандын #1 агро маркетплейси</div>
+            <div className="badge bg-white/20 text-white mb-4 text-[11px] sm:text-xs">🇰🇬 Агромаркетплейс №1 в Кыргызстане</div>
             <h1 className="text-2xl sm:text-3xl md:text-5xl font-bold leading-tight mb-4">
-              Фермерден<br />түздөн-түз сатып ал
+              Покупайте<br />напрямую у фермера
             </h1>
-            <p className="text-primary-100 text-sm sm:text-lg mb-6 sm:mb-8">Мал, жашылча, мөмө, дан жана техника. Ортомчулар жок — баасы адилет.</p>
+            <p className="text-primary-100 text-sm sm:text-lg mb-6 sm:mb-8">Животные, овощи, фрукты, зерно и техника. Без посредников, честные цены.</p>
             <form onSubmit={e => { e.preventDefault(); navigate(`/catalog?search=${encodeURIComponent(search)}`); }} className="flex flex-col sm:flex-row gap-2 max-w-lg">
               <div className="relative flex-1">
                 <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Эмне издейсиз?" className="w-full pl-11 pr-4 py-3 sm:py-3.5 rounded-xl bg-white/95 text-slate-900 text-sm outline-none" />
+                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Что вы ищете?" className="w-full pl-11 pr-4 py-3 sm:py-3.5 rounded-xl bg-white/95 text-slate-900 text-sm outline-none" />
               </div>
-              <button type="submit" className="btn bg-accent-500 text-white hover:bg-accent-600 px-6 py-3 sm:py-3.5 text-sm shrink-0">Издөө</button>
+              <button type="submit" className="btn bg-accent-500 text-white hover:bg-accent-600 px-6 py-3 sm:py-3.5 text-sm shrink-0">Поиск</button>
             </form>
             <div className="flex flex-wrap gap-2 mt-4 text-xs sm:text-sm text-primary-100">
-              {['Картошка', 'Уй эти', 'Буудай', 'Бал', 'Томат'].map(t => (
+              {['Картофель', 'Говядина', 'Пшеница', 'Мёд', 'Томаты'].map(t => (
                 <button key={t} onClick={() => navigate(`/catalog?search=${t}`)} className="bg-white/10 hover:bg-white/20 px-3 py-1 rounded-full transition">{t}</button>
               ))}
             </div>
@@ -87,14 +87,14 @@ export default function Home() {
       {/* Categories */}
       <section className="max-w-7xl mx-auto px-4 py-8 sm:py-10">
         <div className="flex items-center justify-between mb-4 sm:mb-5">
-          <h2 className="text-lg sm:text-xl font-bold">Категориялар</h2>
-          <Link to="/catalog" className="text-xs sm:text-sm text-primary-600 font-medium flex items-center gap-1 hover:underline">Бардыгы <ArrowRight size={14} /></Link>
+          <h2 className="text-lg sm:text-xl font-bold">Категории</h2>
+          <Link to="/catalog" className="text-xs sm:text-sm text-primary-600 font-medium flex items-center gap-1 hover:underline">Все <ArrowRight size={14} /></Link>
         </div>
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-8 gap-2 sm:gap-3">
           {CATEGORIES.map(c => (
             <Link key={c.value} to={`/catalog?category=${c.value}`} className="flex flex-col items-center gap-1.5 p-2.5 sm:p-3 rounded-2xl bg-card border border-border hover:border-primary-300 hover:bg-primary-50 transition text-center">
               <span className="text-xl sm:text-2xl">{c.emoji}</span>
-              <span className="text-[10px] sm:text-[11px] font-medium text-slate-600 leading-tight">{c.labelKy}</span>
+              <span className="text-[10px] sm:text-[11px] font-medium text-slate-600 leading-tight">{c.labelRu}</span>
             </Link>
           ))}
         </div>
@@ -104,8 +104,8 @@ export default function Home() {
       {listings.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between mb-4 sm:mb-5">
-            <h2 className="text-lg sm:text-xl font-bold">Акыркы жарыялар</h2>
-            <Link to="/catalog" className="text-xs sm:text-sm text-primary-600 font-medium flex items-center gap-1 hover:underline">Баары <ArrowRight size={14} /></Link>
+            <h2 className="text-lg sm:text-xl font-bold">Последние объявления</h2>
+            <Link to="/catalog" className="text-xs sm:text-sm text-primary-600 font-medium flex items-center gap-1 hover:underline">Все <ArrowRight size={14} /></Link>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
             {listings.map(l => <ListingCard key={l.id} l={l} />)}
@@ -117,8 +117,8 @@ export default function Home() {
       {prices.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 py-8 sm:py-10">
           <div className="flex items-center justify-between mb-4 sm:mb-5">
-            <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2"><BarChart3 size={20} className="text-primary-600 shrink-0" /> <span className="truncate">Баалар борбору</span></h2>
-            <Link to="/prices" className="text-xs sm:text-sm text-primary-600 font-medium flex items-center gap-1 hover:underline shrink-0">Толук <ArrowRight size={14} /></Link>
+            <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2"><BarChart3 size={20} className="text-primary-600 shrink-0" /> <span className="truncate">Центр цен</span></h2>
+            <Link to="/prices" className="text-xs sm:text-sm text-primary-600 font-medium flex items-center gap-1 hover:underline shrink-0">Подробнее <ArrowRight size={14} /></Link>
           </div>
           <div className="card overflow-x-auto">
             <table className="w-full text-xs sm:text-sm min-w-[420px]">

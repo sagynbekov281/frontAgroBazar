@@ -4,8 +4,7 @@ import { api } from '../api/client';
 import type { ChatRoom, ChatMessage, User } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
-import { Send, ArrowLeft, Users, Plus, X, Reply, Trash2, Image as ImageIcon, LogOut, Phone, UserPlus, Info, Smile, MoreVertical, ShieldCheck, UserMinus, Pencil, Camera, Star, BadgeCheck, MessageCircle } from 'lucide-react';
-import EmojiPicker, { Theme, type EmojiClickData } from 'emoji-picker-react';
+import { Send, ArrowLeft, Users, Plus, X, Reply, Trash2, Image as ImageIcon, LogOut, Phone, UserPlus, Info, Smile, MoreVertical, ShieldCheck, UserMinus, Pencil, Camera, Star, BadgeCheck, MessageCircle, Sparkles } from 'lucide-react';import EmojiPicker, { Theme, type EmojiClickData } from 'emoji-picker-react';
 
 
 const MAX_IMAGE_BYTES = 400_000;
@@ -13,6 +12,7 @@ const WA_GREEN = '#008069';
 const WA_GREEN_DARK = '#005c4b';
 const WA_BUBBLE_SENT = '#d9fdd3';
 const WA_BG = '#e9ddc9';
+const AI_USER_ID = 'ai-assistant';
 
 function compressImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -126,9 +126,18 @@ export default function Chat() {
   const emojiWrapRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
-  function loadRooms() {
+ function loadRooms() {
     api.getRooms().then(d => setRooms(d.rooms || [])).catch(() => {});
   }
+
+  async function handleStartAiChat() {
+    try {
+      const d = await api.startAiChat();
+      loadRooms();
+      navigate(`/chat/${d.roomId}`);
+    } catch (e) { console.error(e); }
+  }
+
 
   useEffect(() => { loadRooms(); }, []);
 
@@ -157,6 +166,7 @@ export default function Chat() {
     if (hasUnread && readSentRef.current !== roomId + messages.length) {
       readSentRef.current = roomId + messages.length;
       socket.emit('message:read', { roomId });
+      setRooms(prev => prev.map(r => r.id === roomId ? { ...r, unread: 0 } : r));
     }
   }, [messages, roomId, socket, user?.id]);
 
@@ -363,12 +373,18 @@ export default function Chat() {
   return (
     <div className="max-w-5xl mx-auto px-2 py-3 sm:px-4 sm:py-8 h-[calc(100vh-90px)] sm:h-[calc(100vh-140px)] flex flex-col md:flex-row gap-2 sm:gap-4">
       {/* rooms list */}
+      
       <div className={`${roomId ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-80 shrink-0 rounded-2xl overflow-hidden shadow-sm border border-border`}>
         <div className="p-3 sm:p-4 flex items-center justify-between text-white" style={{ background: WA_GREEN }}>
           <span className="font-semibold text-sm sm:text-base">Сообщения</span>
-          <button onClick={() => setShowNewChat(true)} className="p-1.5 rounded-full hover:bg-white/15" title="Новый чат">
-            <Plus size={19} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button onClick={handleStartAiChat} className="p-1.5 rounded-full hover:bg-white/15" title="Спросить у ИИ">
+              <Sparkles size={18} />
+            </button>
+            <button onClick={() => setShowNewChat(true)} className="p-1.5 rounded-full hover:bg-white/15" title="Новый чат">
+              <Plus size={19} />
+            </button>
+          </div>
         </div>
         <div className="overflow-y-auto flex-1 bg-white">
           {rooms.length === 0 ? (
@@ -485,20 +501,20 @@ export default function Chat() {
                 const isMe = m.senderId === user?.id;
                 const snippet = findReplySnippet(m.replyTo);
                 return (
-                  <div key={m.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group`}>
-                    {isMe && (
-                      <div className="opacity-0 group-hover:opacity-100 transition flex items-center gap-1 mr-1 self-center order-first">
-                        <button onClick={() => setReplyingTo(m)} className="p-1 rounded hover:bg-white/70 text-slate-500" title="Ответить"><Reply size={14} /></button>
-                        <button onClick={() => setConfirmDelete(m)} className="p-1 rounded hover:bg-white/70 text-red-500" title="Удалить"><Trash2 size={14} /></button>
-                      </div>
-                    )}
-                    <div
-                      className="max-w-[85%] sm:max-w-[65%] px-2.5 py-1.5 sm:px-3 sm:py-2 text-sm shadow-sm"
-                      style={{
-                        background: isMe ? WA_BUBBLE_SENT : '#ffffff',
-                        borderRadius: isMe ? '10px 10px 2px 10px' : '10px 10px 10px 2px',
-                      }}
-                    >
+              <div key={m.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group`}>
+  {isMe && (
+    <div className="opacity-0 group-hover:opacity-100 transition flex items-center gap-1 mr-1 self-center">
+      <button onClick={() => setReplyingTo(m)} className="p-1 rounded hover:bg-white/70 text-slate-500" title="Ответить"><Reply size={14} /></button>
+      <button onClick={() => setConfirmDelete(m)} className="p-1 rounded hover:bg-white/70 text-red-500" title="Удалить"><Trash2 size={14} /></button>
+    </div>
+  )}
+  <div
+    className="max-w-[85%] sm:max-w-[65%] px-2.5 py-1.5 sm:px-3 sm:py-2 text-sm shadow-sm"
+    style={{
+      background: isMe ? WA_BUBBLE_SENT : '#ffffff',
+      borderRadius: isMe ? '10px 10px 2px 10px' : '10px 10px 10px 2px',
+    }}
+  >
                       {!isMe && activeRoom?.isGroup && (
                         <button
                           onClick={() => setProfileUserId(m.senderId)}
@@ -524,7 +540,13 @@ export default function Chat() {
                         {messageStatus(m)}
                       </div>
                     </div>
-                  </div>
+  {!isMe && (
+    <div className="opacity-0 group-hover:opacity-100 transition flex items-center gap-1 ml-1 self-center">
+      <button onClick={() => setReplyingTo(m)} className="p-1 rounded hover:bg-white/70 text-slate-500" title="Ответить"><Reply size={14} /></button>
+      <button onClick={() => setConfirmDelete(m)} className="p-1 rounded hover:bg-white/70 text-slate-400" title="Удалить у себя"><Trash2 size={14} /></button>
+    </div>
+  )}
+</div>
                 );
               })}
               <div ref={bottomRef} />

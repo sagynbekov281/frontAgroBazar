@@ -24,6 +24,7 @@ export const api = {
   me: () => req('/auth/me'),
   getUser: (id: string) => req(`/auth/user/${id}`),
   searchUsers: (q: string) => req(`/auth/search?q=${encodeURIComponent(q)}`),
+  startAiChat: () => req('/chat/ai/start', { method: 'POST' }),
 
   getListings: (p?: Record<string, string>) => req(`/listings${qs(p)}`),
   getListing: (id: string) => req(`/listings/${id}`),

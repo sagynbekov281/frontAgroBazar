@@ -12,7 +12,7 @@ const WA_GREEN = '#008069';
 const WA_GREEN_DARK = '#005c4b';
 const WA_BUBBLE_SENT = '#d9fdd3';
 const WA_BG = '#e9ddc9';
-const AI_USER_ID = 'ai-assistant';
+
 
 function compressImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
